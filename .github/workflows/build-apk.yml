@@ -49,6 +49,9 @@ jobs:
       - name: Synchronize Android project
         run: npx cap sync android
 
+      - name: Align generated Capacitor code with JDK 17
+        run: node scripts/prepare-java17-capacitor.mjs
+
       - name: Build debug APK
         working-directory: android
         run: |
