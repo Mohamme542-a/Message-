@@ -1,5 +1,6 @@
 const DB_NAME = "alpha-byte-keys";
 const DEVICE_KEY = "alpha-byte-device-id";
+const LEGACY_IDENTITY_OWNER_KEY = "alpha-byte.legacy-identity-owner";
 
 const toB64 = (bytes) => {
   let raw = "";
@@ -15,14 +16,16 @@ const fromB64 = (value) => {
 
 function openStore() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2);
+    const request = indexedDB.open(DB_NAME, 3);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains("keys")) db.createObjectStore("keys");
+      let messages;
       if (!db.objectStoreNames.contains("messages")) {
-        const messages = db.createObjectStore("messages", { keyPath: "id" });
+        messages = db.createObjectStore("messages", { keyPath: "id" });
         messages.createIndex("conversationId", "conversationId", { unique: false });
-      }
+      } else messages = request.transaction.objectStore("messages");
+      if (!messages.indexNames.contains("accountConversation")) messages.createIndex("accountConversation", ["accountScope", "conversationId"], { unique: false });
     };
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
@@ -49,25 +52,35 @@ async function putStored(name, value) {
   });
 }
 
+const scopeFor = (value) => String(value || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
+
 const randomId = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(18));
   return toB64(bytes);
 };
 
-export async function getDeviceIdentity(accountScope = "guest") {
+export async function getDeviceIdentity(accountScope = "guest", options = {}) {
   if (!crypto?.subtle || !indexedDB) throw new Error("CRYPTO_UNAVAILABLE");
-  const scope = String(accountScope).replace(/[^a-zA-Z0-9_-]/g, "_");
+  const scope = scopeFor(accountScope);
   const scopedDeviceKey = `${DEVICE_KEY}:${scope}`;
   const scopedIdentityKey = `identity:${scope}`;
   let deviceId = localStorage.getItem(scopedDeviceKey);
+  let identity = await getStored(scopedIdentityKey);
+  const canMigrateLegacyIdentity = options.allowLegacyMigration === true && !localStorage.getItem(LEGACY_IDENTITY_OWNER_KEY);
+  if (!identity && canMigrateLegacyIdentity) {
+    const legacyIdentity = await getStored("identity");
+    const legacyDeviceId = localStorage.getItem(DEVICE_KEY);
+    if (legacyIdentity && legacyDeviceId) {
+      identity = legacyIdentity;
+      deviceId = legacyDeviceId;
+      await putStored(scopedIdentityKey, identity);
+      localStorage.setItem(scopedDeviceKey, deviceId);
+      localStorage.setItem(LEGACY_IDENTITY_OWNER_KEY, scope);
+    }
+  }
   if (!deviceId) {
     deviceId = randomId();
     localStorage.setItem(scopedDeviceKey, deviceId);
-  }
-  let identity = await getStored(scopedIdentityKey);
-  if (!identity && accountScope !== "guest") {
-    const legacyIdentity = await getStored("identity");
-    if (legacyIdentity) { identity = legacyIdentity; await putStored(scopedIdentityKey, identity); }
   }
   if (!identity) {
     const pair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveKey", "deriveBits"]);
@@ -120,16 +133,16 @@ export async function openConversationKey(sealed, identity) {
   return crypto.subtle.importKey("raw", rawConversationKey, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
-export async function storeConversationKey(conversationId, key) {
-  await putStored(`conversation:${conversationId}`, key);
+export async function storeConversationKey(accountId, conversationId, key) {
+  await putStored(`conversation:${scopeFor(accountId)}:${conversationId}`, key);
 }
 
-export async function getConversationKey(conversationId) {
-  return getStored(`conversation:${conversationId}`);
+export async function getConversationKey(accountId, conversationId) {
+  return getStored(`conversation:${scopeFor(accountId)}:${conversationId}`);
 }
 
 /** Stores ciphertext envelopes only; cleartext is decrypted in memory by the caller. */
-export async function cacheCiphertextMessages(conversationId, envelopes) {
+export async function cacheCiphertextMessages(accountId, conversationId, envelopes) {
   const db = await openStore();
   const now = Date.now();
   return new Promise((resolve, reject) => {
@@ -138,9 +151,9 @@ export async function cacheCiphertextMessages(conversationId, envelopes) {
     for (const envelope of envelopes) {
       if (!envelope?.id || envelope.conversationId && envelope.conversationId !== conversationId) continue;
       if (envelope.expiresAt && new Date(envelope.expiresAt).getTime() <= now) {
-        store.delete(envelope.id);
+        store.delete(`${scopeFor(accountId)}:${envelope.id}`);
       } else {
-        store.put({ id: envelope.id, conversationId, envelope, cachedAt: now, expiresAt: envelope.expiresAt || null });
+        store.put({ id: `${scopeFor(accountId)}:${envelope.id}`, accountScope: scopeFor(accountId), conversationId, envelope, cachedAt: now, expiresAt: envelope.expiresAt || null });
       }
     }
     tx.onabort = () => reject(tx.error);
@@ -149,13 +162,13 @@ export async function cacheCiphertextMessages(conversationId, envelopes) {
 }
 
 /** Returns unexpired ciphertext cached on this device and removes any locally expired copies. */
-export async function getCachedCiphertextMessages(conversationId) {
+export async function getCachedCiphertextMessages(accountId, conversationId) {
   const db = await openStore();
   const now = Date.now();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("messages", "readwrite");
     const store = tx.objectStore("messages");
-    const request = store.index("conversationId").getAll(IDBKeyRange.only(conversationId));
+    const request = store.index("accountConversation").getAll(IDBKeyRange.only([scopeFor(accountId), conversationId]));
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const records = request.result || [];
