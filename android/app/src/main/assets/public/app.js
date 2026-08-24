@@ -5,7 +5,7 @@ const TOKEN_KEY = "alpha-byte.session";
 const ACCOUNT_KEY = "alpha-byte.account";
 const NAMES_KEY = "alpha-byte.conversation-names";
 const app = document.getElementById("app");
-const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, grants: [], expiry: "week", busy: false, reactionPicker: false, stickerPicker: false };
+const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, collectiveSearch: "", collectivePeople: [], collectiveSearching: false, collective: { kind: "group", members: [], avatarFile: null }, avatarUrls: {}, grants: [], expiry: "week", busy: false, reactionPicker: false, stickerPicker: false };
 
 const text = (value) => String(value ?? "").replace(/[&<>'"]/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", "\"":"&quot;" })[character]);
 const sessionToken = () => localStorage.getItem(TOKEN_KEY) || "";
@@ -13,7 +13,7 @@ const accountNames = () => JSON.parse(localStorage.getItem(NAMES_KEY) || "{}");
 const rememberName = (conversationId, name) => localStorage.setItem(NAMES_KEY, JSON.stringify({ ...accountNames(), [conversationId]: name }));
 const bindNativeSession = token => { try { window.AlphaByteNative?.bindSession?.(token); } catch { /* Browser preview has no native bridge. */ } };
 const clearNativeSession = () => { try { window.AlphaByteNative?.clearSession?.(); } catch { /* Browser preview has no native bridge. */ } };
-const messageFor = (code) => ({ ACTIVATION_REQUIRED:"رمز التفعيل غير صحيح", INVALID_ACCESS_INPUT:"تحقق من بيانات الدخول", USERNAME_UNAVAILABLE:"اسم المستخدم غير متاح", INVALID_CREDENTIALS:"بيانات الدخول غير صحيحة", SESSION_REQUIRED:"انتهت جلسة هذا الجهاز", RECIPIENT_DEVICE_UNAVAILABLE:"هذا الحساب غير جاهز للمراسلة الآن؛ يجب أن يفتح Alpha Byte ويسجل جهازه أولًا.", FEATURE_APPROVAL_REQUIRED:"تحتاج موافقة المدير على هذا الامتياز.", CONVERSATION_ACCESS_REQUIRED:"لا تملك وصولًا إلى هذه المحادثة", DEVICE_ACCESS_REQUIRED:"تعذر التحقق من جهاز الإرسال؛ أعد تسجيل الدخول.", INVALID_CONVERSATION_INPUT:"تعذر إنشاء المحادثة. حاول مرة أخرى.", ATTACHMENT_UNAVAILABLE:"الملف غير متاح أو انتهت مدة الاحتفاظ به.", NETWORK_ERROR:"تعذر الاتصال بخادم Alpha Byte.", CRYPTO_UNAVAILABLE:"هذا الجهاز لا يدعم التشفير المطلوب" }[code] || "تعذر إتمام الطلب الآن");
+const messageFor = (code) => ({ ACTIVATION_REQUIRED:"رمز التفعيل غير صحيح", INVALID_ACCESS_INPUT:"تحقق من بيانات الدخول", USERNAME_UNAVAILABLE:"اسم المستخدم غير متاح", INVALID_CREDENTIALS:"بيانات الدخول غير صحيحة", SESSION_REQUIRED:"انتهت جلسة هذا الجهاز", RECIPIENT_DEVICE_UNAVAILABLE:"هذا الحساب غير جاهز للمراسلة الآن؛ يجب أن يفتح Alpha Byte ويسجل جهازه أولًا.", FEATURE_APPROVAL_REQUIRED:"تحتاج موافقة المدير على هذا الامتياز.", CONVERSATION_ACCESS_REQUIRED:"لا تملك وصولًا إلى هذه المحادثة", CONVERSATION_MANAGE_REQUIRED:"هذه العملية متاحة للمالك أو المشرف فقط.", CONVERSATION_OWNER_REQUIRED:"تغيير دور المشرف متاح للمالك فقط.", CHANNEL_PUBLISH_REQUIRED:"النشر في القناة متاح للمالك والمشرفين فقط.", DEVICE_ACCESS_REQUIRED:"تعذر التحقق من جهاز الإرسال؛ أعد تسجيل الدخول.", INVALID_CONVERSATION_INPUT:"تعذر إنشاء المحادثة. حاول مرة أخرى.", INVALID_COLLECTIVE_INPUT:"تحقق من نوع المجموعة واسمها المشفّر.", INVALID_COLLECTIVE_MEMBER:"تعذر إضافة أحد الأعضاء إلى المجموعة.", ATTACHMENT_UNAVAILABLE:"الملف غير متاح أو انتهت مدة الاحتفاظ به.", NETWORK_ERROR:"تعذر الاتصال بخادم Alpha Byte.", CRYPTO_UNAVAILABLE:"هذا الجهاز لا يدعم التشفير المطلوب" }[code] || "تعذر إتمام الطلب الآن");
 
 async function api(path, method = "GET", body, headers = {}) {
   const allHeaders = { ...headers };
@@ -29,26 +29,46 @@ const isGranted = key => state.grants.some(item => item.featureKey === key);
 const profileThemeKey = () => `alpha-byte.profile-theme.${state.account?.accountId || "guest"}`;
 const profileTheme = () => isGranted("profile_theme") ? localStorage.getItem(profileThemeKey()) || "graphite" : "graphite";
 const setNotice = value => { state.notice = value; render(); };
-const mark = () => '<div class="mark" aria-label="Alpha Byte">A<span>B</span></div>';
+const mark = () => '<svg class="mark" viewBox="0 0 108 108" role="img" aria-label="Alpha Byte"><rect width="108" height="108" fill="#050505"/><path fill="#F4F4F5" d="M17 82 43 25h12l26 57H68l-6-14H35l-6 14Zm23-25h18L49 36Z"/><path fill="#A3A3A3" d="M56 26h14c14 0 21 7 21 16 0 6-3 11-8 13 7 2 10 7 10 13 0 10-8 17-22 17H56Zm12 10v15h4c5 0 8-3 8-8 0-5-3-7-9-7Zm0 24v16h5c6 0 9-3 9-8 0-5-4-8-10-8Z"/><path fill="#050505" d="M54 24h7v61h-7z"/></svg>';
 const busy = value => { state.busy = value; render(); };
 
 async function registerDevice() {
-  const identity = await getDeviceIdentity();
+  if (!state.account?.accountId) throw new Error("SESSION_REQUIRED");
+  const identity = await getDeviceIdentity(state.account.accountId);
   await api("/api/native/device", "POST", { deviceId: identity.deviceId, deviceLabel: "Alpha Byte Android", identityPublicKey: toB64(new TextEncoder().encode(JSON.stringify(identity.publicJwk))) });
   state.device = identity;
+  return identity;
+}
+
+async function ensureSenderDevice() {
+  if (!state.account?.accountId) throw new Error("SESSION_REQUIRED");
+  return registerDevice();
 }
 
 async function loadGrants() { const data = await api("/api/native/features"); state.grants = data.grants; if (!isGranted("profile_theme")) localStorage.removeItem(profileThemeKey()); }
 async function loadSessions() { state.sessions = null; render(); try { const data = await api("/api/native/sessions"); state.sessions = data.sessions; state.currentSessionId = data.currentSessionId; } catch (error) { state.sessions = []; state.notice = messageFor(error.message); } render(); }
 async function loadConversations() { const data = await api("/api/native/conversations"); state.conversations = data.conversations; }
 
+async function loadConversationAvatar(key, assetId) {
+  if (!assetId) return "";
+  if (state.avatarUrls[assetId]) return state.avatarUrls[assetId];
+  const response = await fetch(`${API}/api/native/conversation-assets/${encodeURIComponent(assetId)}`, { headers: { Authorization: `Bearer ${sessionToken()}` } });
+  if (!response.ok) return "";
+  const clear = await decryptFile(key, new Uint8Array(await response.arrayBuffer()));
+  const url = URL.createObjectURL(new Blob([clear], { type: "image/*" }));
+  state.avatarUrls[assetId] = url;
+  return url;
+}
+
 async function openConversation(conversation) {
   busy(true);
   try {
+    if (!state.device) await ensureSenderDevice();
     let key = await getConversationKey(conversation.id);
-    const result = await api(`/api/native/conversations/${conversation.id}/messages`);
+    const [result, metadata] = await Promise.all([api(`/api/native/conversations/${conversation.id}/messages`), api(`/api/native/conversations/${conversation.id}`)]);
     if (!key && result.encryptedConversationKey) { key = await openConversationKey(result.encryptedConversationKey, state.device); await storeConversationKey(conversation.id, key); }
     if (!key) throw new Error("CRYPTO_UNAVAILABLE");
+    if (metadata.conversation?.encryptedTitle) { try { const title = await decryptJson(key, metadata.conversation.encryptedTitle); if (title?.title) rememberName(conversation.id, title.title); } catch { /* Keep the safe generic title if this device cannot open the wrapped key. */ } }
     await cacheCiphertextMessages(conversation.id, result.messages);
     const cached = await getCachedCiphertextMessages(conversation.id);
     const envelopes = Array.from(new Map([...cached, ...result.messages].map(envelope => [envelope.id, envelope])).values());
@@ -56,7 +76,8 @@ async function openConversation(conversation) {
     for (const envelope of envelopes) {
       try { messages.push({ ...envelope, clear: await decryptJson(key, envelope.encryptedPayload) }); } catch { messages.push({ ...envelope, clear: { kind: "unreadable" } }); }
     }
-    state.activeConversation = { ...conversation, key };
+    const avatarUrl = await loadConversationAvatar(key, metadata.conversation?.avatarAssetId).catch(() => "");
+    state.activeConversation = { ...conversation, ...metadata.conversation, memberRole: metadata.membership?.memberRole, avatarUrl, key };
     state.messages = messages;
     state.view = "conversation";
   } catch (error) { state.notice = messageFor(error.message); }
@@ -107,11 +128,27 @@ function peopleResults() {
 
 function conversationList() { if (!state.conversations.length) return `<section class="empty"><div class="empty-ring">✦</div><p>ابدأ محادثة مشفّرة</p><small>ابحث عن شخص من تبويب الأشخاص.</small></section>`; return `<section class="conversation-list">${state.conversations.map(item => `<button class="conversation-row" data-conversation="${text(item.id)}"><span class="avatar">${text((accountNames()[item.id] || "A").slice(0,1).toUpperCase())}</span><span><strong>${text(accountNames()[item.id] || "محادثة خاصة")}</strong><small>محتوى مشفّر · حذف خادمي خلال أسبوع</small></span><i>‹</i></button>`).join("")}</section>`; }
 
+function collectiveMemberResults() {
+  if (state.collectiveSearch.trim().length < 2) return '<p class="muted">ابحث باسم المستخدم لإضافة أعضاء حقيقيين.</p>';
+  if (state.collectiveSearching) return '<p class="muted">جارٍ البحث…</p>';
+  const selected = new Set(state.collective.members.map(member => member.accountId));
+  const people = state.collectivePeople.filter(person => !selected.has(person.accountId));
+  if (!people.length) return '<p class="muted">لا توجد حسابات جاهزة للإضافة.</p>';
+  return people.map(person => `<article class="person-row"><span class="avatar">${text(person.username.slice(0, 1).toUpperCase())}</span><span><strong>${text(person.username)}</strong><small>${text(person.accountId)}</small></span><button class="person-action" data-collective-add="${text(person.accountId)}" data-collective-name="${text(person.username)}" type="button">إضافة</button></article>`).join("");
+}
+
+function renderCollectiveBuilder() {
+  const collective = state.collective;
+  const members = collective.members.length ? collective.members.map(member => `<div class="collective-member"><span><strong>${text(member.username)}</strong><small>${member.memberRole === "admin" ? "مشرف" : "عضو"}</small></span><button type="button" data-collective-role="${text(member.accountId)}">${member.memberRole === "admin" ? "عضو" : "مشرف"}</button><button type="button" data-collective-remove="${text(member.accountId)}">×</button></div>`).join("") : '<p class="muted">يمكنك الإنشاء الآن ثم إضافة أعضاء لاحقًا، أو أضفهم من البحث.</p>';
+  return `<section class="page collective-builder"><div class="page-head"><button class="back-button" id="collective-back" type="button">›</button><h2>إنشاء مساحة</h2></div><div class="switch collective-kind"><button class="${collective.kind === "group" ? "selected" : ""}" data-collective-kind="group" type="button">مجموعة</button><button class="${collective.kind === "channel" ? "selected" : ""}" data-collective-kind="channel" type="button">قناة</button></div><p class="muted">${collective.kind === "channel" ? "المالك والمشرفون فقط ينشرون في القناة." : "كل أعضاء المجموعة يستطيعون الإرسال."}</p><label class="field">الاسم<input id="collective-title" maxlength="64" placeholder="اسم ${collective.kind === "channel" ? "القناة" : "المجموعة"}" required /></label><label class="collective-avatar-input">＋ <span>${collective.avatarFile ? text(collective.avatarFile.name) : "صورة مشفّرة اختيارية"}</span><input id="collective-avatar" type="file" accept="image/*" hidden /></label><p class="session-title">الأعضاء</p><label class="search-box"><input id="collective-search" value="${text(state.collectiveSearch)}" placeholder="ابحث باسم المستخدم" autocomplete="off" /><span>⌕</span></label><div class="people-results">${collectiveMemberResults()}</div><div class="collective-members">${members}</div><button class="primary" id="create-collective" type="button" ${state.busy ? "disabled" : ""}>${state.busy ? "جارٍ الإنشاء…" : `إنشاء ${collective.kind === "channel" ? "القناة" : "المجموعة"}`}</button></section>`;
+}
+
 function renderApp() {
   const account = state.account || { username: "", accountId: "" };
   let content = "";
-  if (state.view === "inbox") content = `<section class="inbox-title"><div><p class="eyebrow">${text(account.username)}</p><h1>Alpha Byte</h1></div><button class="compose" id="open-people" type="button" aria-label="محادثة جديدة">＋</button></section>${conversationList()}`;
+  if (state.view === "inbox") content = `<section class="inbox-title"><div><p class="eyebrow">${text(account.username)}</p><h1>Alpha Byte</h1></div><div class="inbox-actions"><button class="compose compose-secondary" id="open-collective" type="button" aria-label="إنشاء مجموعة أو قناة">◈</button><button class="compose" id="open-people" type="button" aria-label="محادثة جديدة">＋</button></div></section>${conversationList()}`;
   if (state.view === "people") content = `<section class="page"><div class="page-head"><span class="page-icon">⌕</span><h2>الأشخاص</h2></div><label class="search-box"><input id="people-search" value="${text(state.search)}" placeholder="ابحث باسم المستخدم" autocomplete="off" /><span>⌕</span></label><div class="people-results">${peopleResults()}</div></section>`;
+  if (state.view === "collective-create") content = renderCollectiveBuilder();
   if (state.view === "settings") content = `<section class="page"><div class="page-head"><span class="page-icon">⚙</span><h2>الإعدادات</h2></div><div class="settings-card"><div class="setting"><span><strong>${text(account.username)}${isGranted("verified_badge") ? ' <b class="verified-badge">✓ موثّق</b>' : ""}</strong><small>${text(account.accountId)}</small></span><i class="setting-icon">◉</i></div><button class="setting" id="theme-toggle"><span><strong>المظهر</strong><small>${state.dark ? "داكن" : "فاتح"}</small></span><i class="setting-icon">◐</i></button><button class="setting" id="receipt-toggle"><span><strong>إيصالات القراءة</strong><small>${state.receipts ? "مفعلة" : "متوقفة"}</small></span><i class="setting-icon">✓</i></button><div class="setting permission-note"><span><strong>الصور والملفات</strong><small>اختيار من منتقي النظام، والكاميرا تطلب الإذن عند استخدامها فقط.</small></span><i class="setting-icon">⌁</i></div></div><p class="session-title">امتيازات الحساب</p>${featureTiles()}${profileThemePicker()}${sessionSection()}<div class="settings-card"><button class="setting danger" id="logout"><span><strong>تسجيل الخروج</strong><small>إنهاء جلسة هذا الجهاز</small></span><i class="setting-icon">×</i></button></div></section>`;
   if (state.view === "conversation" && state.activeConversation) content = renderConversation();
   app.innerHTML = `<main class="app-shell"><header class="topbar">${mark().replace('class="mark"','class="mark mark-sm"')}<button class="icon-button" id="settings-button" type="button" aria-label="الإعدادات">⚙</button></header>${state.notice ? `<p class="app-notice" role="status">${text(state.notice)}</p>` : ""}${content}</main>${state.view !== "conversation" ? `<nav class="nav"><button class="${state.view === "inbox" ? "current" : ""}" data-view="inbox"><i>✦</i><span>المحادثات</span></button><button class="${state.view === "people" ? "current" : ""}" data-view="people"><i>⌕</i><span>الأشخاص</span></button><button class="${state.view === "settings" ? "current" : ""}" data-view="settings"><i>⚙</i><span>الإعدادات</span></button></nav>` : ""}`;
@@ -120,10 +157,13 @@ function renderApp() {
 
 function renderConversation() {
   const name = accountNames()[state.activeConversation.id] || "محادثة خاصة";
+  const channelReadOnly = state.activeConversation.kind === "channel" && !["owner", "admin"].includes(state.activeConversation.memberRole);
   const items = state.messages.map(message => { const clear = message.clear || {}; if (clear.kind === "reaction") return `<div class="reaction-event">${text(clear.emoji || "✦")} تفاعل مشفّر</div>`; if (clear.kind === "sticker") return `<div class="sticker-event"><b>${text(clear.glyph || "✦")}</b><span>${text(clear.label || "ALPHA")}</span></div>`; if (clear.kind === "attachment") return `<div class="message-bubble"><strong>ملف مشفّر</strong><small>${text(clear.name || "مرفق")}</small><button class="file-open" data-download="${text(clear.attachmentId || "")}" data-file-name="${text(clear.name || "alpha-byte-file")}" type="button">فتح بعد فك التشفير</button></div>`; if (clear.kind === "unreadable") return '<div class="reaction-event">تعذر فتح رسالة مشفّرة على هذا الجهاز.</div>'; return `<div class="message-bubble"><p>${text(clear.text || "")}</p><small>حذف الخادم: خلال أسبوع</small></div>`; }).join("") || '<section class="empty compact"><div class="empty-ring">✦</div><p>لا توجد رسائل بعد</p><small>ابدأ رسالة مشفّرة من جهازك.</small></section>';
   const reactions = ["👍", "❤️", "😂", "😮", "😢"];
   const stickers = [["✦", "ALPHA"], ["◈", "BYTE"], ["↗", "RISE"], ["∞", "PRIVATE"]];
-  return `<section class="conversation-page"><div class="conversation-head"><button class="back-button" id="back-inbox" type="button">›</button><div><strong>${text(name)}</strong><small>تشفير محلي قبل الإرسال</small></div><button class="icon-button small" id="reaction-button" type="button">☺</button>${isGranted("sticker_pack") ? '<button class="icon-button small" id="sticker-button" type="button">✦</button>' : ""}</div>${state.reactionPicker ? `<div class="reaction-picker">${reactions.map(emoji => `<button type="button" data-reaction="${emoji}">${emoji}</button>`).join("")}</div>` : ""}${state.stickerPicker ? `<div class="sticker-picker">${stickers.map(([glyph, label]) => `<button type="button" data-sticker-glyph="${glyph}" data-sticker-label="${label}"><b>${glyph}</b><span>${label}</span></button>`).join("")}</div>` : ""}<div class="message-scroll">${items}</div><form class="composer" id="message-form"><input id="message-text" placeholder="رسالة مشفّرة" autocomplete="off" ${state.busy ? "disabled" : ""}/><select id="expiry" ${state.busy ? "disabled" : ""}><option value="day" ${state.expiry === "day" ? "selected" : ""}>يوم</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>أسبوع</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>شهر*</option></select><label class="attach ${state.busy ? "disabled" : ""}" title="اختيار ملف">＋<input id="attachment-file" type="file" hidden ${state.busy ? "disabled" : ""}/></label><button class="attach camera" id="camera-button" type="button" title="التقاط صورة" ${state.busy ? "disabled" : ""}>◉</button><input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${state.busy ? "disabled" : ""}/><button class="send" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "جارٍ الإرسال…" : "↑"}</button></form><p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p></section>`;
+  const composer = channelReadOnly ? '<p class="channel-readonly">هذه قناة: النشر متاح للمالك والمشرفين فقط.</p>' : `<form class="composer" id="message-form"><input id="message-text" placeholder="رسالة مشفّرة" autocomplete="off" ${state.busy ? "disabled" : ""}/><select id="expiry" ${state.busy ? "disabled" : ""}><option value="day" ${state.expiry === "day" ? "selected" : ""}>يوم</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>أسبوع</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>شهر*</option></select><label class="attach ${state.busy ? "disabled" : ""}" title="اختيار ملف">＋<input id="attachment-file" type="file" hidden ${state.busy ? "disabled" : ""}/></label><button class="attach camera" id="camera-button" type="button" title="التقاط صورة" ${state.busy ? "disabled" : ""}>◉</button><input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${state.busy ? "disabled" : ""}/><button class="send" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "جارٍ الإرسال…" : "↑"}</button></form>`;
+  const conversationAvatar = state.activeConversation.avatarUrl ? `<img class="conversation-avatar" src="${text(state.activeConversation.avatarUrl)}" alt=""/>` : mark().replace('class="mark"', 'class="mark mark-avatar"');
+  return `<section class="conversation-page"><div class="conversation-head"><button class="back-button" id="back-inbox" type="button">›</button>${conversationAvatar}<div><strong>${text(name)}</strong><small>${state.activeConversation.kind === "channel" ? "قناة مشفّرة" : state.activeConversation.kind === "group" ? "مجموعة مشفّرة" : "تشفير محلي قبل الإرسال"}</small></div><button class="icon-button small" id="reaction-button" type="button">☺</button>${isGranted("sticker_pack") ? '<button class="icon-button small" id="sticker-button" type="button">✦</button>' : ""}</div>${state.reactionPicker ? `<div class="reaction-picker">${reactions.map(emoji => `<button type="button" data-reaction="${emoji}">${emoji}</button>`).join("")}</div>` : ""}${state.stickerPicker ? `<div class="sticker-picker">${stickers.map(([glyph, label]) => `<button type="button" data-sticker-glyph="${glyph}" data-sticker-label="${label}"><b>${glyph}</b><span>${label}</span></button>`).join("")}</div>` : ""}<div class="message-scroll">${items}</div>${composer}<p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p></section>`;
 }
 
 async function startConversation(accountId, username) {
@@ -131,6 +171,7 @@ async function startConversation(accountId, username) {
   state.notice = "جارٍ تجهيز محادثة مشفّرة…";
   busy(true);
   try {
+    await ensureSenderDevice();
     const recipient = await api(`/api/native/people/${accountId}/device`);
     const remotePublicJwk = JSON.parse(new TextDecoder().decode(fromB64(recipient.device.identityPublicKey)));
     const material = await createConversationKeyMaterial();
@@ -146,8 +187,36 @@ async function startConversation(accountId, username) {
   } catch (error) { state.notice = messageFor(error.message); state.busy = false; render(); }
 }
 
+async function createCollective(kind, title, avatarFile) {
+  const cleanTitle = title.trim();
+  if (!cleanTitle) throw new Error("INVALID_COLLECTIVE_INPUT");
+  const senderDevice = await ensureSenderDevice();
+  const material = await createConversationKeyMaterial();
+  const creatorEncryptedConversationKey = await sealConversationKey(material.raw, senderDevice, senderDevice.publicJwk);
+  const members = [];
+  for (const member of state.collective.members) {
+    const recipient = await api(`/api/native/people/${member.accountId}/device`);
+    const publicJwk = JSON.parse(new TextDecoder().decode(fromB64(recipient.device.identityPublicKey)));
+    members.push({ accountId: member.accountId, memberRole: member.memberRole, encryptedConversationKey: await sealConversationKey(material.raw, senderDevice, publicJwk) });
+  }
+  const encryptedTitle = await encryptJson(material.key, { title: cleanTitle, kind });
+  const result = await api("/api/native/collectives", "POST", { kind, encryptedTitle, creatorEncryptedConversationKey, members });
+  await storeConversationKey(result.conversationId, material.key);
+  rememberName(result.conversationId, cleanTitle);
+  if (avatarFile) {
+    const cipher = await encryptFile(material.key, avatarFile);
+    await api(`/api/native/conversations/${result.conversationId}/avatar`, "POST", cipher, { "Content-Type": "application/octet-stream" });
+  }
+  await loadConversations();
+  state.collective = { kind: "group", members: [], avatarFile: null };
+  state.collectivePeople = [];
+  state.collectiveSearch = "";
+  await openConversation(state.conversations.find(item => item.id === result.conversationId) || { id: result.conversationId, kind });
+}
+
 async function sendEnvelope(value, attachmentFile) {
   const conversation = state.activeConversation; if (!conversation?.key) return;
+  const senderDevice = await ensureSenderDevice();
   const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const expiryMap = { day: 24 * 60 * 60 * 1000, week: 7 * 24 * 60 * 60 * 1000, month: 30 * 24 * 60 * 60 * 1000 };
   let payload = { kind: "text", text: value.trim() };
@@ -159,25 +228,27 @@ async function sendEnvelope(value, attachmentFile) {
   }
   const encryptedPayload = await encryptJson(conversation.key, payload);
   const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-LOCAL-1" });
-  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: state.device.deviceId, encryptedPayload, encryptedHeader, expiresAt });
+  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: senderDevice.deviceId, encryptedPayload, encryptedHeader, expiresAt });
   await openConversation(conversation);
 }
 
 async function sendReaction(emoji) {
   const conversation = state.activeConversation; if (!conversation?.key) return;
+  const senderDevice = await ensureSenderDevice();
   const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const encryptedPayload = await encryptJson(conversation.key, { kind: "reaction", emoji });
   const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-LOCAL-1" });
-  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: state.device.deviceId, encryptedPayload, encryptedHeader, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: senderDevice.deviceId, encryptedPayload, encryptedHeader, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
   await openConversation(conversation);
 }
 
 async function sendSticker(glyph, label) {
   const conversation = state.activeConversation; if (!conversation?.key) return;
+  const senderDevice = await ensureSenderDevice();
   const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const encryptedPayload = await encryptJson(conversation.key, { kind: "sticker", glyph, label });
   const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-LOCAL-1" });
-  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: state.device.deviceId, encryptedPayload, encryptedHeader, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: senderDevice.deviceId, encryptedPayload, encryptedHeader, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
   await openConversation(conversation);
 }
 
@@ -195,6 +266,12 @@ function bindApp() {
   document.querySelectorAll("[data-view]").forEach(button => button.onclick = async () => { state.view = button.dataset.view; if (state.view === "settings") { render(); await Promise.all([loadSessions(), loadGrants()]); } else render(); });
   const settings = document.getElementById("settings-button"); if (settings) settings.onclick = async () => { state.view = "settings"; render(); await Promise.all([loadSessions(), loadGrants()]); };
   const openPeople = document.getElementById("open-people"); if (openPeople) openPeople.onclick = () => { state.view = "people"; render(); };
+  const openCollective = document.getElementById("open-collective"); if (openCollective) openCollective.onclick = () => { state.view = "collective-create"; state.notice = ""; render(); };
+  const collectiveBack = document.getElementById("collective-back"); if (collectiveBack) collectiveBack.onclick = () => { state.view = "inbox"; render(); };
+  document.querySelectorAll("[data-collective-kind]").forEach(button => button.onclick = () => { state.collective.kind = button.dataset.collectiveKind; render(); });
+  const collectiveAvatar = document.getElementById("collective-avatar"); if (collectiveAvatar) collectiveAvatar.onchange = event => { state.collective.avatarFile = event.target.files?.[0] || null; render(); };
+  const collectiveSearch = document.getElementById("collective-search"); if (collectiveSearch) collectiveSearch.oninput = async event => { const query = event.target.value; state.collectiveSearch = query; state.collectivePeople = []; state.collectiveSearching = query.trim().length >= 2; const results = document.querySelector(".people-results"); if (results) results.innerHTML = collectiveMemberResults(); if (query.trim().length < 2) return; try { const data = await api(`/api/native/people?q=${encodeURIComponent(query)}`); if (state.collectiveSearch === query) { state.collectivePeople = data.people; state.collectiveSearching = false; const current = document.querySelector(".people-results"); if (current) { current.innerHTML = collectiveMemberResults(); bindCollectiveButtons(); } } } catch (error) { if (state.collectiveSearch === query) { state.collectiveSearching = false; state.notice = messageFor(error.message); render(); } } };
+  bindCollectiveButtons();
   document.querySelectorAll("[data-conversation]").forEach(button => button.onclick = () => openConversation(state.conversations.find(item => item.id === button.dataset.conversation)));
   const search = document.getElementById("people-search"); if (search) search.oninput = async event => { const query = event.target.value; state.search = query; state.people = []; state.searching = query.trim().length >= 2; const results = document.querySelector(".people-results"); if (results) results.innerHTML = peopleResults(); if (query.trim().length < 2) return; try { const data = await api(`/api/native/people?q=${encodeURIComponent(query)}`); if (state.search === query) { state.people = data.people; state.searching = false; const currentResults = document.querySelector(".people-results"); if (currentResults) { currentResults.innerHTML = peopleResults(); bindPeopleButtons(); } } } catch (error) { if (state.search === query) { state.searching = false; state.notice = messageFor(error.message); render(); } } };
   bindPeopleButtons();
@@ -211,10 +288,17 @@ function bindApp() {
   document.querySelectorAll("[data-sticker-glyph]").forEach(button => button.onclick = async () => { try { await sendSticker(button.dataset.stickerGlyph, button.dataset.stickerLabel); state.stickerPicker = false; } catch (error) { state.notice = messageFor(error.message); render(); } });
   const cameraButton = document.getElementById("camera-button"); if (cameraButton) cameraButton.onclick = () => { try { window.AlphaByteNative?.requestCameraPermission?.(); } catch { /* Browser preview uses the system file chooser. */ } document.getElementById("camera-file")?.click(); };
   const form = document.getElementById("message-form"); if (form) form.onsubmit = async event => { event.preventDefault(); const input = document.getElementById("message-text"); const attachment = document.getElementById("attachment-file")?.files?.[0] || document.getElementById("camera-file")?.files?.[0]; state.expiry = document.getElementById("expiry").value; if (!input.value.trim() && !attachment) return; busy(true); try { await sendEnvelope(input.value, attachment); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const createCollectiveButton = document.getElementById("create-collective"); if (createCollectiveButton) createCollectiveButton.onclick = async () => { const title = document.getElementById("collective-title")?.value || ""; busy(true); try { await createCollective(state.collective.kind, title, state.collective.avatarFile); state.notice = "تم إنشاء المساحة المشفّرة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   document.querySelectorAll("[data-download]").forEach(button => button.onclick = async () => { try { await downloadAttachment(button.dataset.download, button.dataset.fileName); } catch (error) { state.notice = messageFor(error.message); render(); } });
 }
 
 function bindPeopleButtons() { document.querySelectorAll("[data-person]").forEach(button => button.onclick = () => startConversation(button.dataset.person, button.dataset.personName)); }
+
+function bindCollectiveButtons() {
+  document.querySelectorAll("[data-collective-add]").forEach(button => button.onclick = () => { if (state.collective.members.some(member => member.accountId === button.dataset.collectiveAdd)) return; state.collective.members.push({ accountId: button.dataset.collectiveAdd, username: button.dataset.collectiveName, memberRole: "member" }); state.collectivePeople = state.collectivePeople.filter(person => person.accountId !== button.dataset.collectiveAdd); render(); });
+  document.querySelectorAll("[data-collective-remove]").forEach(button => button.onclick = () => { state.collective.members = state.collective.members.filter(member => member.accountId !== button.dataset.collectiveRemove); render(); });
+  document.querySelectorAll("[data-collective-role]").forEach(button => button.onclick = () => { const member = state.collective.members.find(item => item.accountId === button.dataset.collectiveRole); if (member) member.memberRole = member.memberRole === "admin" ? "member" : "admin"; render(); });
+}
 
 async function restoreSession() {
   if (!sessionToken()) return render();

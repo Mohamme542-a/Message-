@@ -54,19 +54,26 @@ const randomId = () => {
   return toB64(bytes);
 };
 
-export async function getDeviceIdentity() {
+export async function getDeviceIdentity(accountScope = "guest") {
   if (!crypto?.subtle || !indexedDB) throw new Error("CRYPTO_UNAVAILABLE");
-  let deviceId = localStorage.getItem(DEVICE_KEY);
+  const scope = String(accountScope).replace(/[^a-zA-Z0-9_-]/g, "_");
+  const scopedDeviceKey = `${DEVICE_KEY}:${scope}`;
+  const scopedIdentityKey = `identity:${scope}`;
+  let deviceId = localStorage.getItem(scopedDeviceKey);
   if (!deviceId) {
     deviceId = randomId();
-    localStorage.setItem(DEVICE_KEY, deviceId);
+    localStorage.setItem(scopedDeviceKey, deviceId);
   }
-  let identity = await getStored("identity");
+  let identity = await getStored(scopedIdentityKey);
+  if (!identity && accountScope !== "guest") {
+    const legacyIdentity = await getStored("identity");
+    if (legacyIdentity) { identity = legacyIdentity; await putStored(scopedIdentityKey, identity); }
+  }
   if (!identity) {
     const pair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveKey", "deriveBits"]);
     const publicJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
     identity = { privateKey: pair.privateKey, publicJwk };
-    await putStored("identity", identity);
+    await putStored(scopedIdentityKey, identity);
   }
   return { deviceId, ...identity };
 }
