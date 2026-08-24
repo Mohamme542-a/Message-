@@ -420,15 +420,89 @@ public class MainActivity extends Activity {
     add(device, -1, -2, 9);
   }
 
-  private LinearLayout settingsCard() {
+  private void showProfile() {
+    beginScreen(true);
+    addAppHeader("الملف الشخصي");
+
+    LinearLayout identity = new LinearLayout(this);
+    identity.setGravity(Gravity.CENTER_VERTICAL);
+    identity.setPadding(dp(16), dp(16), dp(16), dp(16));
+    identity.setBackground(shape(SURFACE, 18, BORDER, 1));
+    TextView avatar = label(username.isEmpty() ? "A" : username.substring(0, 1).toUpperCase(), 22, TEXT);
+    avatar.setGravity(Gravity.CENTER);
+    avatar.setTextDirection(View.TEXT_DIRECTION_LTR);
+    avatar.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+    avatar.setBackground(shape(SURFACE_RAISED, 24, BORDER, 1));
+    identity.addView(avatar, new LinearLayout.LayoutParams(dp(48), dp(48)));
+    LinearLayout words = new LinearLayout(this);
+    words.setOrientation(LinearLayout.VERTICAL);
+    TextView name = label(username, 16, TEXT);
+    words.addView(name, new LinearLayout.LayoutParams(-1, -2));
+    TextView id = label(accountId, 11, MUTED);
+    LinearLayout.LayoutParams idParams = new LinearLayout.LayoutParams(-1, -2);
+    idParams.topMargin = dp(5);
+    words.addView(id, idParams);
+    addTo(identity, words, -1, -2, 13);
+    add(identity, -1, -2, 30);
+
+    TextView title = label("هوية الحساب", 13, Color.rgb(188, 188, 188));
+    add(title, -1, -2, 24);
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setPadding(dp(16), dp(15), dp(16), dp(15));
+    card.setBackground(shape(SURFACE, 15, BORDER, 1));
+    TextView privacy = label("معرّفك يبقى داخل AB ولا يحتاج رقم هاتف أو بريد إلكتروني.", 12, MUTED);
+    privacy.setLineSpacing(dp(3), 1f);
+    card.addView(privacy, new LinearLayout.LayoutParams(-1, -2));
+    add(card, -1, -2, 9);
+  }
+
+  private void showPrivacy() {
+    beginScreen(true);
+    addAppHeader("الخصوصية");
+    TextView caption = label("تحكم في التفضيلات التي تخص هذا الجهاز.", 13, MUTED);
+    add(caption, -1, -2, 16);
     LinearLayout card = new LinearLayout(this);
     card.setOrientation(LinearLayout.VERTICAL);
     card.setBackground(shape(SURFACE, 18, BORDER, 1));
     card.addView(settingRow("إيصالات القراءة", prefs.getBoolean("receipts", true) ? "مفعلة" : "متوقفة", v -> {
       prefs.edit().putBoolean("receipts", !prefs.getBoolean("receipts", true)).apply();
+      showPrivacy();
+    }, false));
+    card.addView(settingRow("حالة الحساب", "لا تظهر أرقام هاتف أو بريد إلكتروني", v -> message("إعدادات الحساب محمية"), false));
+    add(card, -1, -2, 28);
+  }
+
+  private void showDevices() {
+    beginScreen(true);
+    addAppHeader("الأجهزة");
+    TextView caption = label("الأجهزة المرتبطة بحسابك.", 13, MUTED);
+    add(caption, -1, -2, 16);
+    LinearLayout device = new LinearLayout(this);
+    device.setOrientation(LinearLayout.VERTICAL);
+    device.setPadding(dp(16), dp(15), dp(16), dp(15));
+    device.setBackground(shape(SURFACE, 16, BORDER, 1));
+    TextView name = label("هذا الجهاز", 15, TEXT);
+    device.addView(name, new LinearLayout.LayoutParams(-1, -2));
+    TextView description = label("الجلسة الحالية مرتبطة بحسابك ويمكن تسجيل الخروج منها من الإعدادات.", 11, MUTED);
+    description.setLineSpacing(dp(3), 1f);
+    LinearLayout.LayoutParams descriptionParams = new LinearLayout.LayoutParams(-1, -2);
+    descriptionParams.topMargin = dp(6);
+    device.addView(description, descriptionParams);
+    add(device, -1, -2, 28);
+  }
+
+  private LinearLayout settingsCard() {
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setBackground(shape(SURFACE, 18, BORDER, 1));
+    card.addView(settingRow("الملف الشخصي", "اسم المستخدم ومعرّف الحساب", v -> showProfile(), false));
+    card.addView(settingRow("الخصوصية", "إدارة تفضيلات الحساب", v -> showPrivacy(), false));
+    card.addView(settingRow("الأجهزة", "عرض جلسة هذا الجهاز", v -> showDevices(), false));
+    card.addView(settingRow("إيصالات القراءة", prefs.getBoolean("receipts", true) ? "مفعلة" : "متوقفة", v -> {
+      prefs.edit().putBoolean("receipts", !prefs.getBoolean("receipts", true)).apply();
       showMain("الإعدادات");
     }, false));
-    card.addView(settingRow("الخصوصية", "إدارة تفضيلات الحساب", v -> message("إعدادات الخصوصية متاحة من الحساب"), false));
     card.addView(settingRow("تسجيل الخروج", "إنهاء جلسة هذا الجهاز", v -> {
       prefs.edit().clear().apply();
       token = "";
