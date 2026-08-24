@@ -24,6 +24,7 @@ public class MainActivity extends BridgeActivity {
     private static final String SESSION_TOKEN = "session_token";
     private static final String INTEGRITY_FAILURE_URL = "https://abmessenger-miwecp5v.manus.space/api/native/integrity/failure";
     private static final int CAMERA_PERMISSION_REQUEST = 141;
+    private static final int MEDIA_PERMISSION_REQUEST = 142;
 
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
@@ -101,6 +102,19 @@ public class MainActivity extends BridgeActivity {
             runOnUiThread(() -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void requestMediaPermission() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES}, MEDIA_PERMISSION_REQUEST);
+                    }
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MEDIA_PERMISSION_REQUEST);
                 }
             });
         }

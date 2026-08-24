@@ -1,10 +1,11 @@
-import { cacheCiphertextMessages, createConversationKeyMaterial, decryptFile, decryptJson, encryptFile, encryptJson, fromB64, getCachedCiphertextMessages, getConversationKey, getDeviceIdentity, openConversationKey, sealConversationKey, storeConversationKey, toB64 } from "./alpha-crypto.js";
+import { cacheCiphertextMessages, createConversationKeyMaterial, decryptFile, decryptJson, encryptFile, encryptJson, exportConversationKeyRaw, fromB64, getCachedCiphertextMessages, getConversationKey, getDeviceIdentity, openConversationKey, sealConversationKey, storeConversationKey, toB64 } from "./alpha-crypto.js";
 
 const API = "https://abmessenger-miwecp5v.manus.space";
 const TOKEN_KEY = "alpha-byte.session";
 const ACCOUNT_KEY = "alpha-byte.account";
 const app = document.getElementById("app");
-const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, legacyIdentityMigrationAllowed: false, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, collectiveSearch: "", collectivePeople: [], collectiveSearching: false, collective: { kind: "group", members: [], avatarFile: null }, avatarUrls: {}, grants: [], expiry: "week", busy: false, reactionPicker: false, stickerPicker: false };
+const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, legacyIdentityMigrationAllowed: false, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, collectiveSearch: "", collectivePeople: [], collectiveSearching: false, collective: { kind: "group", members: [], avatarFile: null }, collectiveAdmin: { members: [], links: [], joinRequests: [], search: "", people: [], loading: false, newLink: "" }, inviteJoin: { open: false, value: "" }, conversationTools: false, messageSearch: "", messageSearchOpen: false, replyTo: null, avatarUrls: {}, attachmentUrls: {}, attachmentLoading: {}, attachmentPreview: null, grants: [], expiry: "week", busy: false, reactionPicker: false, stickerPicker: false };
+let conversationRefreshTimer = null;
 
 const text = (value) => String(value ?? "").replace(/[&<>'"]/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", "\"":"&quot;" })[character]);
 const sessionToken = () => localStorage.getItem(TOKEN_KEY) || "";
@@ -13,7 +14,7 @@ const accountNames = () => JSON.parse(localStorage.getItem(namesKey()) || "{}");
 const rememberName = (conversationId, name) => localStorage.setItem(namesKey(), JSON.stringify({ ...accountNames(), [conversationId]: name }));
 const bindNativeSession = token => { try { window.AlphaByteNative?.bindSession?.(token); } catch { /* Browser preview has no native bridge. */ } };
 const clearNativeSession = () => { try { window.AlphaByteNative?.clearSession?.(); } catch { /* Browser preview has no native bridge. */ } };
-const messageFor = (code) => ({ ACTIVATION_REQUIRED:"رمز التفعيل غير صحيح", INVALID_ACCESS_INPUT:"تحقق من بيانات الدخول", USERNAME_UNAVAILABLE:"اسم المستخدم غير متاح", INVALID_CREDENTIALS:"بيانات الدخول غير صحيحة", SESSION_REQUIRED:"انتهت جلسة هذا الجهاز", RECIPIENT_DEVICE_UNAVAILABLE:"هذا الحساب غير جاهز للمراسلة الآن؛ يجب أن يفتح Alpha Byte ويسجل جهازه أولًا.", FEATURE_APPROVAL_REQUIRED:"تحتاج موافقة المدير على هذا الامتياز.", CONVERSATION_ACCESS_REQUIRED:"لا تملك وصولًا إلى هذه المحادثة", CONVERSATION_MANAGE_REQUIRED:"هذه العملية متاحة للمالك أو المشرف فقط.", CONVERSATION_OWNER_REQUIRED:"تغيير دور المشرف متاح للمالك فقط.", CHANNEL_PUBLISH_REQUIRED:"النشر في القناة متاح للمالك والمشرفين فقط.", DEVICE_ACCESS_REQUIRED:"تعذر التحقق من جهاز الإرسال؛ أعد تسجيل الدخول.", DEVICE_BOUND_TO_ANOTHER_ACCOUNT:"معرّف هذا الجهاز مرتبط بحساب آخر؛ أعد تثبيت التطبيق أو تواصل مع الدعم.", KEY_MATERIAL_UNAVAILABLE:"تم مسح مفتاح هذا الجهاز؛ لا يمكن فتح الرسائل القديمة من هذا الجهاز. أنشئ محادثة جديدة أو استعد المفتاح من جهاز موثوق.", INVALID_CONVERSATION_INPUT:"تعذر إنشاء المحادثة. حاول مرة أخرى.", INVALID_COLLECTIVE_INPUT:"تحقق من نوع المجموعة واسمها المشفّر.", INVALID_COLLECTIVE_MEMBER:"تعذر إضافة أحد الأعضاء إلى المجموعة.", ATTACHMENT_UNAVAILABLE:"الملف غير متاح أو انتهت مدة الاحتفاظ به.", NETWORK_ERROR:"تعذر الاتصال بخادم Alpha Byte.", CRYPTO_UNAVAILABLE:"هذا الجهاز لا يدعم التشفير المطلوب" }[code] || "تعذر إتمام الطلب الآن");
+const messageFor = (code) => ({ ACTIVATION_REQUIRED:"رمز التفعيل غير صحيح", INVALID_ACCESS_INPUT:"تحقق من بيانات الدخول", USERNAME_UNAVAILABLE:"اسم المستخدم غير متاح", INVALID_CREDENTIALS:"بيانات الدخول غير صحيحة", SESSION_REQUIRED:"انتهت جلسة هذا الجهاز", RECIPIENT_DEVICE_UNAVAILABLE:"هذا الحساب غير جاهز للمراسلة الآن؛ يجب أن يفتح Alpha Byte ويسجل جهازه أولًا.", FEATURE_APPROVAL_REQUIRED:"تحتاج موافقة المدير على هذا الامتياز.", CONVERSATION_ACCESS_REQUIRED:"لا تملك وصولًا إلى هذه المحادثة", CONVERSATION_MANAGE_REQUIRED:"هذه العملية متاحة للمالك أو المشرف فقط.", CONVERSATION_OWNER_REQUIRED:"تغيير دور المشرف متاح للمالك فقط.", CHANNEL_PUBLISH_REQUIRED:"النشر في القناة متاح للمالك والمشرفين فقط.", ACCOUNT_BLOCKED:"لا يمكنك مراسلة هذا الحساب لأنه حظرك أو لأن المحادثة مقيدة.", INVALID_REPORT:"تحقق من الحساب ونوع الإبلاغ.", DEVICE_ACCESS_REQUIRED:"تعذر التحقق من جهاز الإرسال؛ أعد تسجيل الدخول.", DEVICE_BOUND_TO_ANOTHER_ACCOUNT:"معرّف هذا الجهاز مرتبط بحساب آخر؛ أعد تثبيت التطبيق أو تواصل مع الدعم.", KEY_MATERIAL_UNAVAILABLE:"تم مسح مفتاح هذا الجهاز؛ لا يمكن فتح الرسائل القديمة من هذا الجهاز. أنشئ محادثة جديدة أو استعد المفتاح من جهاز موثوق.", INVALID_CONVERSATION_INPUT:"تعذر إنشاء المحادثة. حاول مرة أخرى.", INVALID_COLLECTIVE_INPUT:"تحقق من نوع المجموعة واسمها المشفّر.", INVALID_COLLECTIVE_MEMBER:"تعذر إضافة أحد الأعضاء إلى المجموعة.", ATTACHMENT_UNAVAILABLE:"الملف غير متاح أو انتهت مدة الاحتفاظ به.", NETWORK_ERROR:"تعذر الاتصال بخادم Alpha Byte.", CRYPTO_UNAVAILABLE:"هذا الجهاز لا يدعم التشفير المطلوب" }[code] || "تعذر إتمام الطلب الآن");
 
 async function api(path, method = "GET", body, headers = {}) {
   const allHeaders = { ...headers };
@@ -33,7 +34,9 @@ const mark = () => '<svg class="mark" viewBox="0 0 108 108" role="img" aria-labe
 const busy = value => { state.busy = value; render(); };
 
 function resetAccountState() {
+  stopConversationRefresh();
   Object.values(state.avatarUrls).forEach(url => { try { URL.revokeObjectURL(url); } catch { /* Ignore an already released object URL. */ } });
+  Object.values(state.attachmentUrls).forEach(url => { try { URL.revokeObjectURL(url); } catch { /* Ignore an already released object URL. */ } });
   state.device = null;
   state.legacyIdentityMigrationAllowed = false;
   state.sessions = null;
@@ -48,7 +51,16 @@ function resetAccountState() {
   state.collectivePeople = [];
   state.collectiveSearching = false;
   state.collective = { kind: "group", members: [], avatarFile: null };
+  state.collectiveAdmin = { members: [], links: [], joinRequests: [], search: "", people: [], loading: false, newLink: "" };
+  state.inviteJoin = { open: false, value: "" };
+  state.conversationTools = false;
+  state.messageSearch = "";
+  state.messageSearchOpen = false;
+  state.replyTo = null;
   state.avatarUrls = {};
+  state.attachmentUrls = {};
+  state.attachmentLoading = {};
+  state.attachmentPreview = null;
   state.grants = [];
   state.reactionPicker = false;
   state.stickerPicker = false;
@@ -71,6 +83,49 @@ async function ensureSenderDevice() {
 async function loadGrants() { const data = await api("/api/native/features"); state.grants = data.grants; if (!isGranted("profile_theme")) localStorage.removeItem(profileThemeKey()); }
 async function loadSessions() { state.sessions = null; render(); try { const data = await api("/api/native/sessions"); state.sessions = data.sessions; state.currentSessionId = data.currentSessionId; } catch (error) { state.sessions = []; state.notice = messageFor(error.message); } render(); }
 async function loadConversations() { const data = await api("/api/native/conversations"); state.conversations = data.conversations; }
+
+function stopConversationRefresh() {
+  if (conversationRefreshTimer) clearInterval(conversationRefreshTimer);
+  conversationRefreshTimer = null;
+}
+
+const messageFingerprint = messages => messages.map(message => message.id).join("|");
+const attachmentMime = value => String(value?.mimeType || "").toLowerCase();
+const attachmentName = value => String(value?.name || "alpha-byte-file");
+const isImageAttachment = value => attachmentMime(value).startsWith("image/") || /\.(?:avif|bmp|gif|jpe?g|png|webp)$/i.test(attachmentName(value));
+const resolvedAttachmentMime = value => attachmentMime(value) || (/\.(?:jpe?g)$/i.test(attachmentName(value)) ? "image/jpeg" : /\.png$/i.test(attachmentName(value)) ? "image/png" : /\.webp$/i.test(attachmentName(value)) ? "image/webp" : /\.gif$/i.test(attachmentName(value)) ? "image/gif" : "application/octet-stream");
+const messageTime = value => { try { return value ? new Intl.DateTimeFormat("ar", { hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "مشفّرة"; } catch { return "مشفّرة"; } };
+
+async function decodeConversationMessages(conversationId, key, envelopes) {
+  await cacheCiphertextMessages(state.account.accountId, conversationId, envelopes);
+  const cached = await getCachedCiphertextMessages(state.account.accountId, conversationId);
+  const merged = Array.from(new Map([...cached, ...envelopes].map(envelope => [envelope.id, envelope])).values());
+  const messages = [];
+  for (const envelope of merged) {
+    try { messages.push({ ...envelope, clear: await decryptJson(key, envelope.encryptedPayload) }); }
+    catch { messages.push({ ...envelope, clear: { kind: "unreadable" } }); }
+  }
+  return messages;
+}
+
+async function refreshOpenConversation() {
+  const conversation = state.activeConversation;
+  if (!conversation?.id || !conversation.key || state.view !== "conversation" || state.busy || document.visibilityState === "hidden") return;
+  try {
+    const result = await api(`/api/native/conversations/${conversation.id}/messages`);
+    if (state.activeConversation?.id !== conversation.id || state.activeConversation.key !== conversation.key) return;
+    const messages = await decodeConversationMessages(conversation.id, conversation.key, result.messages);
+    if (messageFingerprint(messages) !== messageFingerprint(state.messages)) {
+      state.messages = messages;
+      render();
+    }
+  } catch { /* A transient refresh failure must not replace the open conversation or interrupt typing. */ }
+}
+
+function startConversationRefresh() {
+  stopConversationRefresh();
+  conversationRefreshTimer = setInterval(() => { void refreshOpenConversation(); }, 3000);
+}
 
 async function loadConversationAvatar(key, assetId) {
   if (!assetId) return "";
@@ -96,17 +151,12 @@ async function openConversation(conversation) {
     }
     if (!key) throw new Error("KEY_MATERIAL_UNAVAILABLE");
     if (metadata.conversation?.encryptedTitle) { try { const title = await decryptJson(key, metadata.conversation.encryptedTitle); if (title?.title) rememberName(conversation.id, title.title); } catch { /* Keep the safe generic title if this device cannot open the wrapped key. */ } }
-    await cacheCiphertextMessages(state.account.accountId, conversation.id, result.messages);
-    const cached = await getCachedCiphertextMessages(state.account.accountId, conversation.id);
-    const envelopes = Array.from(new Map([...cached, ...result.messages].map(envelope => [envelope.id, envelope])).values());
-    const messages = [];
-    for (const envelope of envelopes) {
-      try { messages.push({ ...envelope, clear: await decryptJson(key, envelope.encryptedPayload) }); } catch { messages.push({ ...envelope, clear: { kind: "unreadable" } }); }
-    }
+    const messages = await decodeConversationMessages(conversation.id, key, result.messages);
     const avatarUrl = await loadConversationAvatar(key, metadata.conversation?.avatarAssetId).catch(() => "");
     state.activeConversation = { ...conversation, ...metadata.conversation, memberRole: metadata.membership?.memberRole, avatarUrl, key };
     state.messages = messages;
     state.view = "conversation";
+    startConversationRefresh();
   } catch (error) { state.notice = messageFor(error.message); }
   state.busy = false; render();
 }
@@ -173,24 +223,46 @@ function renderCollectiveBuilder() {
 function renderApp() {
   const account = state.account || { username: "", accountId: "" };
   let content = "";
-  if (state.view === "inbox") content = `<section class="inbox-title"><div><p class="eyebrow">${text(account.username)}</p><h1>Alpha Byte</h1></div><button class="compose" id="open-people" type="button" aria-label="محادثة جديدة">＋</button></section><button class="collective-cta" id="open-collective" type="button"><span class="collective-cta-icon">◈</span><span><strong>إنشاء مجموعة أو قناة</strong><small>مجانًا · اسم وصورة وأدوار مالك ومشرف وعضو</small></span><i>‹</i></button>${conversationList()}`;
+  if (state.view === "inbox") content = `<section class="inbox-title"><div><p class="eyebrow">${text(account.username)}</p><h1>Alpha Byte</h1></div><button class="compose" id="open-people" type="button" aria-label="محادثة جديدة">＋</button></section><button class="collective-cta" id="open-collective" type="button"><span class="collective-cta-icon">◈</span><span><strong>إنشاء مجموعة أو قناة</strong><small>مجانًا · اسم وصورة وأدوار مالك ومشرف وعضو</small></span><i>‹</i></button><button class="invite-join-toggle" id="open-invite-join" type="button">لديك رابط دعوة؟ انضم بطلب موافقة <i>‹</i></button>${state.inviteJoin.open ? `<form class="invite-join-form" id="invite-join-form"><input id="invite-join-input" value="${text(state.inviteJoin.value)}" placeholder="الصق رابط أو رمز الدعوة" autocomplete="off"/><button type="submit">إرسال الطلب</button></form>` : ""}${conversationList()}`;
   if (state.view === "people") content = `<section class="page"><div class="page-head"><span class="page-icon">⌕</span><h2>الأشخاص</h2></div><label class="search-box"><input id="people-search" value="${text(state.search)}" placeholder="ابحث باسم المستخدم" autocomplete="off" /><span>⌕</span></label><div class="people-results">${peopleResults()}</div></section>`;
   if (state.view === "collective-create") content = renderCollectiveBuilder();
   if (state.view === "settings") content = `<section class="page"><div class="page-head"><span class="page-icon">⚙</span><h2>الإعدادات</h2></div><div class="settings-card"><div class="setting"><span><strong>${text(account.username)}${isGranted("verified_badge") ? ' <b class="verified-badge">✓ موثّق</b>' : ""}</strong><small>${text(account.accountId)}</small></span><i class="setting-icon">◉</i></div><button class="setting" id="theme-toggle"><span><strong>المظهر</strong><small>${state.dark ? "داكن" : "فاتح"}</small></span><i class="setting-icon">◐</i></button><button class="setting" id="receipt-toggle"><span><strong>إيصالات القراءة</strong><small>${state.receipts ? "مفعلة" : "متوقفة"}</small></span><i class="setting-icon">✓</i></button><div class="setting permission-note"><span><strong>الصور والملفات</strong><small>اختيار من منتقي النظام، والكاميرا تطلب الإذن عند استخدامها فقط.</small></span><i class="setting-icon">⌁</i></div></div><p class="session-title">امتيازات الحساب</p>${featureTiles()}${profileThemePicker()}${sessionSection()}<div class="settings-card"><button class="setting danger" id="logout"><span><strong>تسجيل الخروج</strong><small>إنهاء جلسة هذا الجهاز</small></span><i class="setting-icon">×</i></button></div></section>`;
   if (state.view === "conversation" && state.activeConversation) content = renderConversation();
   app.innerHTML = `<main class="app-shell ${state.view === "conversation" ? "chat-shell" : ""}">${state.view !== "conversation" ? `<header class="topbar">${mark().replace('class="mark"','class="mark mark-sm"')}<button class="icon-button" id="settings-button" type="button" aria-label="الإعدادات">⚙</button></header>` : ""}${state.notice ? `<p class="app-notice" role="status">${text(state.notice)}</p>` : ""}${content}</main>${state.view !== "conversation" ? `<nav class="nav"><button class="${state.view === "inbox" ? "current" : ""}" data-view="inbox"><i>✦</i><span>المحادثات</span></button><button class="${state.view === "people" ? "current" : ""}" data-view="people"><i>⌕</i><span>الأشخاص</span></button><button class="${state.view === "settings" ? "current" : ""}" data-view="settings"><i>⚙</i><span>الإعدادات</span></button></nav>` : ""}`;
   bindApp();
+  if (state.view === "conversation") void loadVisibleImagePreviews();
+}
+
+function renderConversationTools() {
+  if (!state.conversationTools || !state.activeConversation) return "";
+  const collective = isCollectiveConversation();
+  const manager = canManageActiveConversation();
+  const admin = state.collectiveAdmin;
+  if (admin.loading) return '<section class="conversation-tools"><p class="muted">جارٍ تحميل أدوات المحادثة…</p></section>';
+  if (!collective) {
+    const peer = admin.members.find(member => member.accountId !== state.account?.accountId);
+    return `<section class="conversation-tools"><p class="tools-title">خصوصية المحادثة</p><p class="muted">${peer ? `الحساب: ${text(peer.username || peer.accountId)}` : "جارٍ التحقق من الطرف الآخر."}</p><div class="tools-actions"><button data-report-peer="spam" type="button">إبلاغ عن إزعاج</button><button class="danger" id="block-peer" type="button">حظر الحساب</button></div></section>`;
+  }
+  const members = admin.members.map(member => { const canChangeRole = state.activeConversation.memberRole === "owner" && member.memberRole !== "owner"; const canRemove = manager && member.memberRole !== "owner" && (state.activeConversation.memberRole === "owner" || member.memberRole === "member"); return `<div class="managed-member"><span><strong>${text(member.username || member.accountId)}</strong><small>${member.memberRole === "owner" ? "المالك" : member.memberRole === "admin" ? "مشرف" : "عضو"}</small></span>${canChangeRole ? `<button data-manage-role="${text(member.accountId)}" data-next-role="${member.memberRole === "admin" ? "member" : "admin"}" type="button">${member.memberRole === "admin" ? "إزالة الإشراف" : "ترقية مشرف"}</button>` : ""}${canRemove ? `<button class="danger" data-manage-remove="${text(member.accountId)}" type="button">إخراج</button>` : ""}</div>`; }).join("") || '<p class="muted">لا توجد عضوية ظاهرة.</p>';
+  const addResults = admin.people.filter(person => !admin.members.some(member => member.accountId === person.accountId)).map(person => `<button class="tool-search-row" data-manage-add="${text(person.accountId)}" data-manage-name="${text(person.username)}" type="button"><span>${text(person.username)}</span><b>إضافة</b></button>`).join("");
+  const links = admin.links.map(link => `<div class="invite-link-row"><span><strong>رابط دعوة</strong><small>${link.state === "active" ? "نشط · يطلب موافقة مدير لإضافة المفتاح" : "ملغى"}</small></span>${link.state === "active" ? `<button class="danger" data-invite-revoke="${text(link.id)}" type="button">إلغاء</button>` : ""}</div>`).join("");
+  const joinRequests = admin.joinRequests.map(request => `<div class="invite-link-row"><span><strong>${text(request.username || request.requesterAccountId)}</strong><small>طلب انضمام عبر رابط</small></span><button data-join-approve="${text(request.id)}" data-join-account="${text(request.requesterAccountId)}" type="button">قبول</button><button class="danger" data-join-decline="${text(request.id)}" data-join-account="${text(request.requesterAccountId)}" type="button">رفض</button></div>`).join("");
+  return `<section class="conversation-tools"><div class="tools-head"><p class="tools-title">إدارة ${state.activeConversation.kind === "channel" ? "القناة" : "المجموعة"}</p><button id="close-conversation-tools" type="button">إغلاق</button></div>${manager ? `<form id="manage-title-form" class="manage-title"><input id="manage-title" value="${text(accountNames()[state.activeConversation.id] || "")}" maxlength="64" placeholder="اسم المساحة"/><button type="submit">حفظ الاسم</button></form><label class="manage-avatar">تحديث الصورة المشفّرة<input id="manage-avatar" type="file" accept="image/*" hidden /></label><div class="invite-create"><button id="create-invite-link" type="button">إنشاء رابط دعوة</button>${admin.newLink ? `<button id="copy-invite-link" type="button">نسخ الرابط</button>` : ""}</div>${admin.newLink ? `<p class="invite-value">${text(admin.newLink)}</p>` : ""}` : '<p class="muted">عرض الأعضاء متاح لك؛ التعديل للمالك أو المشرف فقط.</p>'}<p class="tools-subtitle">الأعضاء</p>${members}${manager ? `<label class="tool-search"><input id="manage-member-search" value="${text(admin.search)}" placeholder="ابحث لإضافة عضو" autocomplete="off"/><span>⌕</span></label><div class="manage-search-results">${addResults || (admin.search.length >= 2 ? '<p class="muted">لا توجد حسابات جاهزة للإضافة.</p>' : "")}</div><p class="tools-subtitle">طلبات الانضمام</p>${joinRequests || '<p class="muted">لا توجد طلبات معلقة.</p>'}<p class="tools-subtitle">روابط الدعوة</p>${links || '<p class="muted">لا يوجد رابط نشط بعد.</p>'}` : ""}</section>`;
 }
 
 function renderConversation() {
   const name = accountNames()[state.activeConversation.id] || "محادثة خاصة";
   const channelReadOnly = state.activeConversation.kind === "channel" && !["owner", "admin"].includes(state.activeConversation.memberRole);
-  const items = state.messages.map(message => { const clear = message.clear || {}; const direction = message.senderDeviceId === state.device?.deviceId ? "outgoing" : "incoming"; if (clear.kind === "reaction") return `<div class="reaction-event">${text(clear.emoji || "✦")} تفاعل مشفّر</div>`; if (clear.kind === "sticker") return `<div class="sticker-event ${direction}"><b>${text(clear.glyph || "✦")}</b><span>${text(clear.label || "ALPHA")}</span></div>`; if (clear.kind === "attachment") return `<div class="message-bubble ${direction}"><strong>ملف مشفّر</strong><small>${text(clear.name || "مرفق")}</small><button class="file-open" data-download="${text(clear.attachmentId || "")}" data-file-name="${text(clear.name || "alpha-byte-file")}" type="button">فتح بعد فك التشفير</button></div>`; if (clear.kind === "unreadable") return '<div class="reaction-event">تعذر فتح رسالة مشفّرة على هذا الجهاز.</div>'; return `<div class="message-bubble ${direction}"><p>${text(clear.text || "")}</p><small>حذف الخادم: خلال أسبوع</small></div>`; }).join("") || '<section class="empty compact"><div class="empty-ring">✦</div><p>لا توجد رسائل بعد</p><small>ابدأ رسالة مشفّرة من جهازك.</small></section>';
+  const filteredMessages = state.messageSearch.trim() ? state.messages.filter(message => String(message.clear?.text || "").toLocaleLowerCase().includes(state.messageSearch.trim().toLocaleLowerCase())) : state.messages;
+  const items = filteredMessages.map(message => { const clear = message.clear || {}; const direction = message.senderDeviceId === state.device?.deviceId ? "outgoing" : "incoming"; const meta = `<small class="message-meta">${text(messageTime(message.serverReceivedAt))}</small>`; const reply = clear.replyTo ? `<div class="reply-context"><span>رد على رسالة</span><p>${text(clear.replyPreview || "رسالة مشفّرة")}</p></div>` : ""; const actions = clear.kind === "text" ? `<div class="message-actions"><button data-message-reply="${text(message.id)}" type="button">رد</button><button data-message-copy="${text(clear.text || "")}" type="button">نسخ</button></div>` : ""; if (clear.kind === "reaction") return `<div class="reaction-event">${text(clear.emoji || "✦")} تفاعل مشفّر</div>`; if (clear.kind === "sticker") return `<div class="sticker-event ${direction}"><b>${text(clear.glyph || "✦")}</b><span>${text(clear.label || "ALPHA")}</span>${meta}</div>`; if (clear.kind === "attachment") { const attachmentId = text(clear.attachmentId || ""); const preview = state.attachmentUrls[clear.attachmentId]; const image = isImageAttachment(clear); return `<div class="message-bubble attachment-card ${direction}">${reply}${image && preview ? `<button class="image-preview" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button"><img src="${text(preview)}" alt="صورة مشفّرة بعد فكها محليًا"/></button>` : ""}<strong>${image ? "صورة مشفّرة" : "ملف مشفّر"}</strong><small>${text(attachmentName(clear))}</small><button class="file-open" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button">${image ? "عرض بعد فك التشفير" : "تنزيل بعد فك التشفير"}</button>${meta}</div>`; } if (clear.kind === "unreadable") return '<div class="reaction-event">تعذر فتح رسالة مشفّرة على هذا الجهاز.</div>'; return `<div class="message-bubble ${direction}">${reply}<p>${text(clear.text || "")}</p>${actions}${meta}</div>`; }).join("") || '<section class="empty compact"><div class="empty-ring">✦</div><p>لا توجد رسائل مطابقة</p><small>جرّب كلمة مختلفة أو امسح البحث.</small></section>';
   const reactions = ["👍", "❤️", "😂", "😮", "😢"];
   const stickers = [["✦", "ALPHA"], ["◈", "BYTE"], ["↗", "RISE"], ["∞", "PRIVATE"]];
   const composer = channelReadOnly ? '<p class="channel-readonly">هذه قناة: النشر متاح للمالك والمشرفين فقط.</p>' : `<form class="composer" id="message-form"><input id="message-text" placeholder="رسالة مشفّرة" autocomplete="off" ${state.busy ? "disabled" : ""}/><select id="expiry" ${state.busy ? "disabled" : ""}><option value="day" ${state.expiry === "day" ? "selected" : ""}>يوم</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>أسبوع</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>شهر*</option></select><label class="attach ${state.busy ? "disabled" : ""}" title="اختيار ملف">＋<input id="attachment-file" type="file" hidden ${state.busy ? "disabled" : ""}/></label><button class="attach camera" id="camera-button" type="button" title="التقاط صورة" ${state.busy ? "disabled" : ""}>◉</button><input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${state.busy ? "disabled" : ""}/><button class="send" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "جارٍ الإرسال…" : "↑"}</button></form>`;
   const conversationAvatar = state.activeConversation.avatarUrl ? `<img class="conversation-avatar" src="${text(state.activeConversation.avatarUrl)}" alt=""/>` : `<span class="conversation-avatar conversation-avatar-fallback">${text(name.slice(0, 1).toUpperCase())}</span>`;
-  return `<section class="conversation-page"><div class="conversation-head"><button class="back-button" id="back-inbox" type="button">›</button>${conversationAvatar}<div><strong>${text(name)}</strong><small>${state.activeConversation.kind === "channel" ? "قناة مشفّرة" : state.activeConversation.kind === "group" ? "مجموعة مشفّرة" : "تشفير محلي قبل الإرسال"}</small></div><button class="icon-button small" id="reaction-button" type="button">☺</button>${isGranted("sticker_pack") ? '<button class="icon-button small" id="sticker-button" type="button">✦</button>' : ""}</div>${state.reactionPicker ? `<div class="reaction-picker">${reactions.map(emoji => `<button type="button" data-reaction="${emoji}">${emoji}</button>`).join("")}</div>` : ""}${state.stickerPicker ? `<div class="sticker-picker">${stickers.map(([glyph, label]) => `<button type="button" data-sticker-glyph="${glyph}" data-sticker-label="${label}"><b>${glyph}</b><span>${label}</span></button>`).join("")}</div>` : ""}<div class="message-scroll">${items}</div>${composer}<p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p></section>`;
+  const preview = state.attachmentPreview ? `<div class="attachment-modal" role="dialog" aria-modal="true"><button id="close-attachment-preview" type="button" aria-label="إغلاق">×</button><img src="${text(state.attachmentPreview.url)}" alt="${text(state.attachmentPreview.name)}"/><p>${text(state.attachmentPreview.name)}</p></div>` : "";
+  const messageSearch = state.messageSearchOpen ? `<form class="message-search" id="message-search-form"><input id="message-search-input" value="${text(state.messageSearch)}" placeholder="ابحث في الرسائل المفتوحة على هذا الجهاز" autocomplete="off"/><button type="submit">بحث</button><button id="clear-message-search" type="button">مسح</button></form>` : "";
+  const replyDraft = state.replyTo ? `<div class="reply-draft"><span>رد على: ${text(state.replyTo.clear?.text || "رسالة")}</span><button id="cancel-reply" type="button">×</button></div>` : "";
+  return `<section class="conversation-page"><div class="conversation-head"><button class="back-button" id="back-inbox" type="button">›</button>${conversationAvatar}<div><strong>${text(name)}</strong><small>${state.activeConversation.kind === "channel" ? "قناة مشفّرة" : state.activeConversation.kind === "group" ? "مجموعة مشفّرة" : "تشفير محلي قبل الإرسال"}</small></div><button class="icon-button small" id="message-search-toggle" type="button" aria-label="بحث في الرسائل">⌕</button><button class="icon-button small" id="conversation-tools" type="button" aria-label="أدوات المحادثة">⋮</button><button class="icon-button small" id="reaction-button" type="button">☺</button>${isGranted("sticker_pack") ? '<button class="icon-button small" id="sticker-button" type="button">✦</button>' : ""}</div>${messageSearch}${state.reactionPicker ? `<div class="reaction-picker">${reactions.map(emoji => `<button type="button" data-reaction="${emoji}">${emoji}</button>`).join("")}</div>` : ""}${state.stickerPicker ? `<div class="sticker-picker">${stickers.map(([glyph, label]) => `<button type="button" data-sticker-glyph="${glyph}" data-sticker-label="${label}"><b>${glyph}</b><span>${label}</span></button>`).join("")}</div>` : ""}${renderConversationTools()}<div class="message-scroll">${items}</div>${replyDraft}${composer}<p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p>${preview}</section>`;
 }
 
 async function startConversation(accountId, username) {
@@ -241,21 +313,160 @@ async function createCollective(kind, title, avatarFile) {
   await openConversation(state.conversations.find(item => item.id === result.conversationId) || { id: result.conversationId, kind });
 }
 
+const isCollectiveConversation = () => ["group", "channel"].includes(state.activeConversation?.kind);
+const canManageActiveConversation = () => isCollectiveConversation() && ["owner", "admin"].includes(state.activeConversation?.memberRole);
+
+async function loadConversationTools() {
+  const conversation = state.activeConversation;
+  if (!conversation?.id) return;
+  state.collectiveAdmin.loading = true;
+  render();
+  try {
+    const members = await api(`/api/native/conversations/${conversation.id}/members`);
+    let links = [], joinRequests = [];
+    if (canManageActiveConversation()) {
+      [links, joinRequests] = await Promise.all([
+        api(`/api/native/conversations/${conversation.id}/invite-links`).then(result => result.links),
+        api(`/api/native/conversations/${conversation.id}/join-requests`).then(result => result.requests),
+      ]);
+    }
+    state.collectiveAdmin = { ...state.collectiveAdmin, members: members.members, links, joinRequests, loading: false };
+  } catch (error) { state.collectiveAdmin.loading = false; state.notice = messageFor(error.message); }
+  render();
+}
+
+async function saveCollectiveTitle(value) {
+  const conversation = state.activeConversation;
+  const title = value.trim();
+  if (!conversation?.key || !title) throw new Error("INVALID_COLLECTIVE_INPUT");
+  const encryptedTitle = await encryptJson(conversation.key, { title, kind: conversation.kind });
+  await api(`/api/native/conversations/${conversation.id}/title`, "POST", { encryptedTitle });
+  rememberName(conversation.id, title);
+  state.activeConversation.encryptedTitle = encryptedTitle;
+}
+
+async function saveCollectiveAvatar(file) {
+  const conversation = state.activeConversation;
+  if (!conversation?.key || !file) return;
+  const cipher = await encryptFile(conversation.key, file);
+  const result = await api(`/api/native/conversations/${conversation.id}/avatar`, "POST", cipher, { "Content-Type": "application/octet-stream" });
+  const url = URL.createObjectURL(new Blob([file], { type: file.type || "image/*" }));
+  if (conversation.avatarAssetId && state.avatarUrls[conversation.avatarAssetId]) URL.revokeObjectURL(state.avatarUrls[conversation.avatarAssetId]);
+  state.avatarUrls[result.assetId] = url;
+  state.activeConversation.avatarAssetId = result.assetId;
+  state.activeConversation.avatarUrl = url;
+}
+
+async function addCollectiveAdminMember(accountId, username) {
+  const conversation = state.activeConversation;
+  if (!conversation?.key || !accountId || state.collectiveAdmin.members.some(member => member.accountId === accountId)) return;
+  const recipient = await api(`/api/native/people/${accountId}/device`);
+  const publicJwk = JSON.parse(new TextDecoder().decode(fromB64(recipient.device.identityPublicKey)));
+  const encryptedConversationKey = await sealConversationKey(await exportConversationKeyRaw(conversation.key), state.device, publicJwk);
+  await api(`/api/native/conversations/${conversation.id}/members`, "POST", { accountId, memberRole: "member", encryptedConversationKey });
+  state.collectiveAdmin.members.push({ accountId, username, memberRole: "member" });
+  state.collectiveAdmin.people = state.collectiveAdmin.people.filter(person => person.accountId !== accountId);
+}
+
+async function changeCollectiveAdminRole(accountId, role) {
+  const conversation = state.activeConversation;
+  if (!conversation) return;
+  await api(`/api/native/conversations/${conversation.id}/members/${accountId}/role`, "POST", { memberRole: role });
+  const member = state.collectiveAdmin.members.find(item => item.accountId === accountId);
+  if (member) member.memberRole = role;
+}
+
+async function removeCollectiveAdminMember(accountId) {
+  const conversation = state.activeConversation;
+  if (!conversation) return;
+  await api(`/api/native/conversations/${conversation.id}/members/${accountId}/remove`, "POST");
+  state.collectiveAdmin.members = state.collectiveAdmin.members.filter(member => member.accountId !== accountId);
+}
+
+async function createCollectiveInviteLink() {
+  const conversation = state.activeConversation;
+  if (!conversation) return;
+  const result = await api(`/api/native/conversations/${conversation.id}/invite-links`, "POST");
+  const link = `https://abmessenger-miwecp5v.manus.space/join?invite=${encodeURIComponent(result.token)}`;
+  state.collectiveAdmin.links = [{ id: result.id, state: "active", createdAt: new Date().toISOString(), link }, ...state.collectiveAdmin.links];
+  state.collectiveAdmin.newLink = link;
+}
+
+async function revokeCollectiveLink(inviteLinkId) {
+  const conversation = state.activeConversation;
+  if (!conversation) return;
+  await api(`/api/native/conversations/${conversation.id}/invite-links/${inviteLinkId}/revoke`, "POST");
+  const link = state.collectiveAdmin.links.find(item => item.id === inviteLinkId);
+  if (link) link.state = "revoked";
+}
+
+async function decideCollectiveJoinRequest(requestId, accountId, decision) {
+  const conversation = state.activeConversation;
+  if (!conversation) return;
+  if (decision === "approve") {
+    const recipient = await api(`/api/native/people/${accountId}/device`);
+    const publicJwk = JSON.parse(new TextDecoder().decode(fromB64(recipient.device.identityPublicKey)));
+    const encryptedConversationKey = await sealConversationKey(await exportConversationKeyRaw(conversation.key), state.device, publicJwk);
+    await api(`/api/native/conversations/${conversation.id}/join-requests/${requestId}/approve`, "POST", { encryptedConversationKey });
+    state.collectiveAdmin.members.push({ accountId, username: accountId, memberRole: "member" });
+  } else {
+    await api(`/api/native/conversations/${conversation.id}/join-requests/${requestId}/decline`, "POST");
+  }
+  state.collectiveAdmin.joinRequests = state.collectiveAdmin.joinRequests.filter(request => request.id !== requestId);
+}
+
+async function copyText(value) {
+  if (!value) return;
+  try { await navigator.clipboard?.writeText(value); state.notice = "تم النسخ"; }
+  catch { state.notice = `رابط الدعوة: ${value}`; }
+  render();
+}
+
+async function blockConversationPeer() {
+  const peer = state.collectiveAdmin.members.find(member => member.accountId !== state.account?.accountId);
+  if (!peer) throw new Error("INVALID_ACCOUNT");
+  await api("/api/native/blocks", "POST", { accountId: peer.accountId });
+  state.notice = `تم حظر ${peer.username || "الحساب"}`;
+}
+
+async function reportConversationPeer(category) {
+  const peer = state.collectiveAdmin.members.find(member => member.accountId !== state.account?.accountId);
+  if (!peer) throw new Error("INVALID_ACCOUNT");
+  const latest = [...state.messages].reverse().find(message => message.senderDeviceId !== state.device?.deviceId);
+  await api("/api/native/reports", "POST", { reportedAccountId: peer.accountId, category, messageReference: latest?.id });
+  state.notice = "تم إرسال البلاغ للمراجعة";
+}
+
+function inviteTokenFromInput(value) {
+  const raw = String(value || "").trim();
+  if (/^[A-Za-z0-9_-]{20,64}$/.test(raw)) return raw;
+  try { return new URL(raw).searchParams.get("invite") || ""; } catch { return ""; }
+}
+
+async function requestInviteJoin(value) {
+  const token = inviteTokenFromInput(value);
+  if (!token) throw new Error("INVALID_INVITE_LINK");
+  await api("/api/native/invite-links/request", "POST", { token });
+  state.inviteJoin = { open: false, value: "" };
+  state.notice = "أُرسل طلب الانضمام؛ سيضيفك المالك أو المشرف بعد الموافقة.";
+}
+
 async function sendEnvelope(value, attachmentFile) {
   const conversation = state.activeConversation; if (!conversation?.key) return;
   const senderDevice = await ensureSenderDevice();
   const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const expiryMap = { day: 24 * 60 * 60 * 1000, week: 7 * 24 * 60 * 60 * 1000, month: 30 * 24 * 60 * 60 * 1000 };
-  let payload = { kind: "text", text: value.trim() };
+  let payload = { kind: "text", text: value.trim(), replyTo: state.replyTo?.id || undefined, replyPreview: state.replyTo?.clear?.text?.slice(0, 96) || undefined };
   const expiresAt = Date.now() + expiryMap[state.expiry];
   if (attachmentFile) {
     const cipher = await encryptFile(conversation.key, attachmentFile);
     const uploaded = await api("/api/native/attachments", "POST", cipher, { "Content-Type": "application/octet-stream", "x-alpha-message-id": messageId, "x-alpha-conversation-id": conversation.id, "x-alpha-retention-deadline": String(expiresAt) });
-    payload = { kind: "attachment", name: attachmentFile.name, attachmentId: uploaded.attachmentId };
+    payload = { kind: "attachment", name: attachmentFile.name, mimeType: attachmentFile.type || "application/octet-stream", attachmentId: uploaded.attachmentId, replyTo: state.replyTo?.id || undefined, replyPreview: state.replyTo?.clear?.text?.slice(0, 96) || undefined };
   }
   const encryptedPayload = await encryptJson(conversation.key, payload);
   const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-LOCAL-1" });
   await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: senderDevice.deviceId, encryptedPayload, encryptedHeader, expiresAt });
+  state.replyTo = null;
   await openConversation(conversation);
 }
 
@@ -279,12 +490,44 @@ async function sendSticker(glyph, label) {
   await openConversation(conversation);
 }
 
-async function downloadAttachment(attachmentId, filename) {
+async function getDecryptedAttachment(attachmentId) {
   const conversation = state.activeConversation; if (!conversation?.key || !attachmentId) return;
   const response = await fetch(`${API}/api/native/attachments/${encodeURIComponent(attachmentId)}`, { headers: { Authorization: `Bearer ${sessionToken()}` } });
   if (!response.ok) throw new Error("ATTACHMENT_UNAVAILABLE");
-  const clear = await decryptFile(conversation.key, new Uint8Array(await response.arrayBuffer()));
-  const objectUrl = URL.createObjectURL(new Blob([clear], { type: "application/octet-stream" }));
+  return decryptFile(conversation.key, new Uint8Array(await response.arrayBuffer()));
+}
+
+async function getImageAttachmentUrl(attachmentId, mimeType) {
+  if (state.attachmentUrls[attachmentId]) return state.attachmentUrls[attachmentId];
+  const clear = await getDecryptedAttachment(attachmentId);
+  const objectUrl = URL.createObjectURL(new Blob([clear], { type: mimeType }));
+  state.attachmentUrls[attachmentId] = objectUrl;
+  return objectUrl;
+}
+
+async function loadVisibleImagePreviews() {
+  for (const message of state.messages) {
+    const clear = message.clear || {};
+    const attachmentId = clear.attachmentId;
+    if (clear.kind !== "attachment" || !attachmentId || !isImageAttachment(clear) || state.attachmentUrls[attachmentId] || state.attachmentLoading[attachmentId]) continue;
+    state.attachmentLoading[attachmentId] = true;
+    try { await getImageAttachmentUrl(attachmentId, resolvedAttachmentMime(clear)); }
+    catch { /* The attachment keeps its safe open action if its preview is unavailable. */ }
+    finally { delete state.attachmentLoading[attachmentId]; }
+    if (state.view === "conversation") render();
+  }
+}
+
+async function openAttachment(attachmentId, filename, mimeType) {
+  const clear = await getDecryptedAttachment(attachmentId);
+  if (String(mimeType).startsWith("image/")) {
+    const objectUrl = state.attachmentUrls[attachmentId] || URL.createObjectURL(new Blob([clear], { type: mimeType }));
+    state.attachmentUrls[attachmentId] = objectUrl;
+    state.attachmentPreview = { url: objectUrl, name: filename };
+    render();
+    return;
+  }
+  const objectUrl = URL.createObjectURL(new Blob([clear], { type: mimeType || "application/octet-stream" }));
   const link = document.createElement("a"); link.href = objectUrl; link.download = filename; link.click();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
@@ -294,6 +537,8 @@ function bindApp() {
   const settings = document.getElementById("settings-button"); if (settings) settings.onclick = async () => { state.view = "settings"; render(); await Promise.all([loadSessions(), loadGrants()]); };
   const openPeople = document.getElementById("open-people"); if (openPeople) openPeople.onclick = () => { state.view = "people"; render(); };
   const openCollective = document.getElementById("open-collective"); if (openCollective) openCollective.onclick = () => { state.view = "collective-create"; state.notice = ""; render(); };
+  const openInviteJoin = document.getElementById("open-invite-join"); if (openInviteJoin) openInviteJoin.onclick = () => { state.inviteJoin.open = !state.inviteJoin.open; render(); };
+  const inviteJoinForm = document.getElementById("invite-join-form"); if (inviteJoinForm) inviteJoinForm.onsubmit = async event => { event.preventDefault(); busy(true); try { await requestInviteJoin(document.getElementById("invite-join-input")?.value || ""); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   const collectiveBack = document.getElementById("collective-back"); if (collectiveBack) collectiveBack.onclick = () => { state.view = "inbox"; render(); };
   document.querySelectorAll("[data-collective-kind]").forEach(button => button.onclick = () => { state.collective.kind = button.dataset.collectiveKind; render(); });
   const collectiveAvatar = document.getElementById("collective-avatar"); if (collectiveAvatar) collectiveAvatar.onchange = event => { state.collective.avatarFile = event.target.files?.[0] || null; render(); };
@@ -308,15 +553,38 @@ function bindApp() {
   const logout = document.getElementById("logout"); if (logout) logout.onclick = () => { resetAccountState(); localStorage.removeItem(TOKEN_KEY); clearNativeSession(); localStorage.removeItem(ACCOUNT_KEY); state.stage = "activation"; state.account = null; state.code = ""; state.view = "inbox"; render(); };
   document.querySelectorAll("[data-revoke]").forEach(button => button.onclick = async () => { try { const result = await api(`/api/native/sessions/${button.dataset.revoke}/revoke`, "POST"); if (result.currentSessionRevoked) { resetAccountState(); localStorage.removeItem(TOKEN_KEY); clearNativeSession(); state.stage = "activation"; state.account = null; render(); } else loadSessions(); } catch (error) { setNotice(messageFor(error.message)); } });
   document.querySelectorAll("[data-feature]").forEach(button => button.onclick = async () => { if (isGranted(button.dataset.feature)) return; try { await api("/api/native/feature-requests", "POST", { featureKey: button.dataset.feature }); state.notice = "أُرسل طلبك إلى المدير للمراجعة"; } catch (error) { state.notice = messageFor(error.message); } render(); });
-  const back = document.getElementById("back-inbox"); if (back) back.onclick = () => { state.view = "inbox"; state.activeConversation = null; render(); };
+  const back = document.getElementById("back-inbox"); if (back) back.onclick = () => { stopConversationRefresh(); state.view = "inbox"; state.activeConversation = null; render(); };
+  const messageSearchToggle = document.getElementById("message-search-toggle"); if (messageSearchToggle) messageSearchToggle.onclick = () => { state.messageSearchOpen = !state.messageSearchOpen; render(); };
+  const messageSearchForm = document.getElementById("message-search-form"); if (messageSearchForm) messageSearchForm.onsubmit = event => { event.preventDefault(); state.messageSearch = document.getElementById("message-search-input")?.value || ""; render(); };
+  const clearMessageSearch = document.getElementById("clear-message-search"); if (clearMessageSearch) clearMessageSearch.onclick = () => { state.messageSearch = ""; state.messageSearchOpen = false; render(); };
+  document.querySelectorAll("[data-message-reply]").forEach(button => button.onclick = () => { state.replyTo = state.messages.find(message => message.id === button.dataset.messageReply) || null; render(); });
+  document.querySelectorAll("[data-message-copy]").forEach(button => button.onclick = () => copyText(button.dataset.messageCopy));
+  const cancelReply = document.getElementById("cancel-reply"); if (cancelReply) cancelReply.onclick = () => { state.replyTo = null; render(); };
+  const conversationTools = document.getElementById("conversation-tools"); if (conversationTools) conversationTools.onclick = async () => { state.conversationTools = !state.conversationTools; render(); if (state.conversationTools) await loadConversationTools(); };
+  const closeConversationTools = document.getElementById("close-conversation-tools"); if (closeConversationTools) closeConversationTools.onclick = () => { state.conversationTools = false; render(); };
+  const titleForm = document.getElementById("manage-title-form"); if (titleForm) titleForm.onsubmit = async event => { event.preventDefault(); busy(true); try { await saveCollectiveTitle(document.getElementById("manage-title")?.value || ""); state.notice = "تم تحديث الاسم المشفّر"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const manageAvatar = document.getElementById("manage-avatar"); if (manageAvatar) manageAvatar.onchange = async event => { const file = event.target.files?.[0]; if (!file) return; busy(true); try { await saveCollectiveAvatar(file); state.notice = "تم تحديث الصورة المشفّرة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const memberSearch = document.getElementById("manage-member-search"); if (memberSearch) memberSearch.oninput = async event => { const query = event.target.value; state.collectiveAdmin.search = query; state.collectiveAdmin.people = []; render(); if (query.trim().length < 2) return; try { const result = await api(`/api/native/people?q=${encodeURIComponent(query)}`); if (state.collectiveAdmin.search === query) { state.collectiveAdmin.people = result.people; render(); } } catch (error) { state.notice = messageFor(error.message); render(); } };
+  document.querySelectorAll("[data-manage-add]").forEach(button => button.onclick = async () => { busy(true); try { await addCollectiveAdminMember(button.dataset.manageAdd, button.dataset.manageName); state.notice = "تمت إضافة العضو مع مفتاحه المغلف"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  document.querySelectorAll("[data-manage-role]").forEach(button => button.onclick = async () => { busy(true); try { await changeCollectiveAdminRole(button.dataset.manageRole, button.dataset.nextRole); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  document.querySelectorAll("[data-manage-remove]").forEach(button => button.onclick = async () => { busy(true); try { await removeCollectiveAdminMember(button.dataset.manageRemove); state.notice = "تم إخراج العضو من المساحة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  const createInviteLink = document.getElementById("create-invite-link"); if (createInviteLink) createInviteLink.onclick = async () => { busy(true); try { await createCollectiveInviteLink(); state.notice = "تم إنشاء رابط دعوة يحتاج موافقة مدير لإضافة العضو"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const copyInviteLink = document.getElementById("copy-invite-link"); if (copyInviteLink) copyInviteLink.onclick = () => copyText(state.collectiveAdmin.newLink);
+  document.querySelectorAll("[data-invite-revoke]").forEach(button => button.onclick = async () => { busy(true); try { await revokeCollectiveLink(button.dataset.inviteRevoke); state.notice = "تم إلغاء رابط الدعوة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  document.querySelectorAll("[data-join-approve]").forEach(button => button.onclick = async () => { busy(true); try { await decideCollectiveJoinRequest(button.dataset.joinApprove, button.dataset.joinAccount, "approve"); state.notice = "تم قبول الطلب وتغليف مفتاح المساحة للعضو"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  document.querySelectorAll("[data-join-decline]").forEach(button => button.onclick = async () => { busy(true); try { await decideCollectiveJoinRequest(button.dataset.joinDecline, button.dataset.joinAccount, "decline"); state.notice = "تم رفض طلب الانضمام"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  const blockPeer = document.getElementById("block-peer"); if (blockPeer) blockPeer.onclick = async () => { busy(true); try { await blockConversationPeer(); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  document.querySelectorAll("[data-report-peer]").forEach(button => button.onclick = async () => { busy(true); try { await reportConversationPeer(button.dataset.reportPeer); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
   const reaction = document.getElementById("reaction-button"); if (reaction) reaction.onclick = () => { state.reactionPicker = !state.reactionPicker; render(); };
   document.querySelectorAll("[data-reaction]").forEach(button => button.onclick = async () => { try { await sendReaction(button.dataset.reaction); state.reactionPicker = false; } catch (error) { state.notice = messageFor(error.message); render(); } });
   const sticker = document.getElementById("sticker-button"); if (sticker) sticker.onclick = () => { state.stickerPicker = !state.stickerPicker; render(); };
   document.querySelectorAll("[data-sticker-glyph]").forEach(button => button.onclick = async () => { try { await sendSticker(button.dataset.stickerGlyph, button.dataset.stickerLabel); state.stickerPicker = false; } catch (error) { state.notice = messageFor(error.message); render(); } });
+  const attachmentInput = document.getElementById("attachment-file"); if (attachmentInput) attachmentInput.onclick = () => { try { window.AlphaByteNative?.requestMediaPermission?.(); } catch { /* Browser preview uses the system file chooser. */ } };
   const cameraButton = document.getElementById("camera-button"); if (cameraButton) cameraButton.onclick = () => { try { window.AlphaByteNative?.requestCameraPermission?.(); } catch { /* Browser preview uses the system file chooser. */ } document.getElementById("camera-file")?.click(); };
   const form = document.getElementById("message-form"); if (form) form.onsubmit = async event => { event.preventDefault(); const input = document.getElementById("message-text"); const attachment = document.getElementById("attachment-file")?.files?.[0] || document.getElementById("camera-file")?.files?.[0]; state.expiry = document.getElementById("expiry").value; if (!input.value.trim() && !attachment) return; busy(true); try { await sendEnvelope(input.value, attachment); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   const createCollectiveButton = document.getElementById("create-collective"); if (createCollectiveButton) createCollectiveButton.onclick = async () => { const title = document.getElementById("collective-title")?.value || ""; busy(true); try { await createCollective(state.collective.kind, title, state.collective.avatarFile); state.notice = "تم إنشاء المساحة المشفّرة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
-  document.querySelectorAll("[data-download]").forEach(button => button.onclick = async () => { try { await downloadAttachment(button.dataset.download, button.dataset.fileName); } catch (error) { state.notice = messageFor(error.message); render(); } });
+  document.querySelectorAll("[data-attachment-open]").forEach(button => button.onclick = async () => { try { await openAttachment(button.dataset.attachmentOpen, button.dataset.fileName, button.dataset.fileMime); } catch (error) { state.notice = messageFor(error.message); render(); } });
+  const closeAttachmentPreview = document.getElementById("close-attachment-preview"); if (closeAttachmentPreview) closeAttachmentPreview.onclick = () => { state.attachmentPreview = null; render(); };
 }
 
 function bindPeopleButtons() { document.querySelectorAll("[data-person]").forEach(button => button.onclick = () => startConversation(button.dataset.person, button.dataset.personName)); }

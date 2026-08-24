@@ -116,8 +116,13 @@ async function decryptBytes(key, source) {
 
 export async function createConversationKeyMaterial() {
   const raw = crypto.getRandomValues(new Uint8Array(32));
-  const key = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  const key = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
   return { key, raw };
+}
+
+/** Re-wraps a conversation key for an approved member in process memory; this value must never be persisted or sent to the server unwrapped. */
+export async function exportConversationKeyRaw(key) {
+  return new Uint8Array(await crypto.subtle.exportKey("raw", key));
 }
 
 export async function sealConversationKey(rawConversationKey, identity, recipientPublicJwk) {
@@ -130,7 +135,7 @@ export async function openConversationKey(sealed, identity) {
   const record = JSON.parse(new TextDecoder().decode(fromB64(sealed)));
   const wrappingKey = await deriveWrappingKey(identity.privateKey, record.senderPublicJwk);
   const rawConversationKey = await decryptBytes(wrappingKey, fromB64(record.ciphertext));
-  return crypto.subtle.importKey("raw", rawConversationKey, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", rawConversationKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
 }
 
 export async function storeConversationKey(accountId, conversationId, key) {
