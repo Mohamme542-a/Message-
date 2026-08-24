@@ -14,6 +14,11 @@ jobs:
   build-debug-apk:
     name: Build debug APK
     runs-on: ubuntu-latest
+    env:
+      ALPHA_KEYSTORE_BASE64: ${{ secrets.ALPHA_KEYSTORE_BASE64 }}
+      ALPHA_KEYSTORE_PASSWORD: ${{ secrets.ALPHA_KEYSTORE_PASSWORD }}
+      ALPHA_KEY_ALIAS: ${{ secrets.ALPHA_KEY_ALIAS }}
+      ALPHA_KEY_PASSWORD: ${{ secrets.ALPHA_KEY_PASSWORD }}
 
     steps:
       - name: Check out source
@@ -71,13 +76,8 @@ jobs:
           if-no-files-found: error
 
       - name: Prepare optional signed release
-        if: ${{ secrets.ALPHA_KEYSTORE_BASE64 != '' && secrets.ALPHA_KEYSTORE_PASSWORD != '' && secrets.ALPHA_KEY_ALIAS != '' && secrets.ALPHA_KEY_PASSWORD != '' }}
+        if: ${{ env.ALPHA_KEYSTORE_BASE64 != '' && env.ALPHA_KEYSTORE_PASSWORD != '' && env.ALPHA_KEY_ALIAS != '' && env.ALPHA_KEY_PASSWORD != '' }}
         working-directory: android
-        env:
-          ALPHA_KEYSTORE_BASE64: ${{ secrets.ALPHA_KEYSTORE_BASE64 }}
-          ALPHA_KEYSTORE_PASSWORD: ${{ secrets.ALPHA_KEYSTORE_PASSWORD }}
-          ALPHA_KEY_ALIAS: ${{ secrets.ALPHA_KEY_ALIAS }}
-          ALPHA_KEY_PASSWORD: ${{ secrets.ALPHA_KEY_PASSWORD }}
         run: |
           printf '%s' "$ALPHA_KEYSTORE_BASE64" | base64 --decode > alpha-byte-release.jks
           cat > signing.properties <<EOF
