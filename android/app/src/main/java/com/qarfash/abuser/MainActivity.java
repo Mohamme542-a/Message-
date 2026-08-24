@@ -2,12 +2,15 @@ package com.qarfash.abuser;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
+
+import androidx.core.view.WindowCompat;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -22,6 +25,7 @@ import java.security.MessageDigest;
 public class MainActivity extends BridgeActivity {
     private static final String PREFS = "alpha_byte_integrity";
     private static final String SESSION_TOKEN = "session_token";
+    private static final String PENDING_INVITE_TOKEN = "pending_invite_token";
     private static final String INTEGRITY_FAILURE_URL = "https://abmessenger-miwecp5v.manus.space/api/native/integrity/failure";
     private static final int CAMERA_PERMISSION_REQUEST = 141;
     private static final int MEDIA_PERMISSION_REQUEST = 142;
@@ -36,7 +40,32 @@ public class MainActivity extends BridgeActivity {
             return;
         }
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         getBridge().getWebView().addJavascriptInterface(new IntegrityBridge(), "AlphaByteNative");
+        storeInviteFromIntent(getIntent());
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        String token = inviteTokenFromIntent(intent);
+        storeInviteFromIntent(intent);
+        if (token != null) {
+            final String safeToken = token;
+            runOnUiThread(() -> getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new CustomEvent('alpha-byte-invite',{detail:'" + safeToken + "'}));", null));
+        }
+    }
+
+    private String inviteTokenFromIntent(Intent intent) {
+        if (intent == null || intent.getData() == null) return null;
+        String token = intent.getData().getQueryParameter("invite");
+        return token != null && token.matches("[A-Za-z0-9_-]{20,64}") ? token : null;
+    }
+
+    private void storeInviteFromIntent(Intent intent) {
+        String token = inviteTokenFromIntent(intent);
+        if (token != null) getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(PENDING_INVITE_TOKEN, token).apply();
     }
 
     private boolean isExpectedReleaseSignature() {
@@ -95,6 +124,14 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void clearSession() {
             clearRememberedSession();
+        }
+
+        @JavascriptInterface
+        public String consumePendingInviteToken() {
+            SharedPreferences preferences = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            String token = preferences.getString(PENDING_INVITE_TOKEN, "");
+            preferences.edit().remove(PENDING_INVITE_TOKEN).apply();
+            return token == null ? "" : token;
         }
 
         @JavascriptInterface

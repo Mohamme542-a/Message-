@@ -1,20 +1,25 @@
-import { cacheCiphertextMessages, createConversationKeyMaterial, decryptFile, decryptJson, encryptFile, encryptJson, exportConversationKeyRaw, fromB64, getCachedCiphertextMessages, getConversationKey, getDeviceIdentity, openConversationKey, sealConversationKey, storeConversationKey, toB64 } from "./alpha-crypto.js";
+import { cacheCiphertextMessages, createConversationKeyMaterial, createEncryptedRecoveryBackup, createRecoveryKey, decryptFile, decryptJson, deleteLocalConversationData, encryptFile, encryptJson, exportConversationKeyRaw, fromB64, getCachedCiphertextMessages, getConversationKey, getDeviceIdentity, hasMessageLockCode, hasUnlockedRecoveryKey, openConversationKey, restoreEncryptedRecoveryBackup, sealConversationKey, setMessageLockCode, storeConversationKey, toB64, unlockRecoveryKey, verifyMessageLockCode } from "./alpha-crypto.js";
 
 const API = "https://abmessenger-miwecp5v.manus.space";
 const TOKEN_KEY = "alpha-byte.session";
 const ACCOUNT_KEY = "alpha-byte.account";
 const app = document.getElementById("app");
-const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, legacyIdentityMigrationAllowed: false, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, collectiveSearch: "", collectivePeople: [], collectiveSearching: false, collective: { kind: "group", members: [], avatarFile: null }, collectiveAdmin: { members: [], links: [], joinRequests: [], search: "", people: [], loading: false, newLink: "" }, inviteJoin: { open: false, value: "" }, conversationTools: false, messageSearch: "", messageSearchOpen: false, replyTo: null, avatarUrls: {}, attachmentUrls: {}, attachmentLoading: {}, attachmentPreview: null, grants: [], expiry: "week", busy: false, reactionPicker: false, stickerPicker: false };
+const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, legacyIdentityMigrationAllowed: false, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, collectiveSearch: "", collectivePeople: [], collectiveSearching: false, collective: { kind: "group", members: [], avatarFile: null }, collectiveAdmin: { members: [], links: [], joinRequests: [], search: "", people: [], loading: false, newLink: "" }, inviteJoin: { open: false, value: "" }, conversationTools: false, messageSearch: "", messageSearchOpen: false, replyTo: null, attachmentDraft: null, avatarUrls: {}, attachmentUrls: {}, attachmentLoading: {}, attachmentPreview: null, grants: [], recovery: { unlocked: false, generatedKey: "" }, messageLock: { configured: false }, expiry: "week", busy: false, reactionPicker: false, stickerPicker: false };
 let conversationRefreshTimer = null;
+let recoveryBackupTimer = null;
 
 const text = (value) => String(value ?? "").replace(/[&<>'"]/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", "\"":"&quot;" })[character]);
 const sessionToken = () => localStorage.getItem(TOKEN_KEY) || "";
 const namesKey = () => `alpha-byte.conversation-names.${state.account?.accountId || "guest"}`;
+const deletedConversationsKey = () => `alpha-byte.deleted-conversations.${state.account?.accountId || "guest"}`;
 const accountNames = () => JSON.parse(localStorage.getItem(namesKey()) || "{}");
 const rememberName = (conversationId, name) => localStorage.setItem(namesKey(), JSON.stringify({ ...accountNames(), [conversationId]: name }));
+const locallyDeletedConversations = () => new Set(JSON.parse(localStorage.getItem(deletedConversationsKey()) || "[]"));
+const rememberLocalConversationDeletion = conversationId => localStorage.setItem(deletedConversationsKey(), JSON.stringify([...locallyDeletedConversations(), conversationId]));
 const bindNativeSession = token => { try { window.AlphaByteNative?.bindSession?.(token); } catch { /* Browser preview has no native bridge. */ } };
 const clearNativeSession = () => { try { window.AlphaByteNative?.clearSession?.(); } catch { /* Browser preview has no native bridge. */ } };
-const messageFor = (code) => ({ ACTIVATION_REQUIRED:"رمز التفعيل غير صحيح", INVALID_ACCESS_INPUT:"تحقق من بيانات الدخول", USERNAME_UNAVAILABLE:"اسم المستخدم غير متاح", INVALID_CREDENTIALS:"بيانات الدخول غير صحيحة", SESSION_REQUIRED:"انتهت جلسة هذا الجهاز", RECIPIENT_DEVICE_UNAVAILABLE:"هذا الحساب غير جاهز للمراسلة الآن؛ يجب أن يفتح Alpha Byte ويسجل جهازه أولًا.", FEATURE_APPROVAL_REQUIRED:"تحتاج موافقة المدير على هذا الامتياز.", CONVERSATION_ACCESS_REQUIRED:"لا تملك وصولًا إلى هذه المحادثة", CONVERSATION_MANAGE_REQUIRED:"هذه العملية متاحة للمالك أو المشرف فقط.", CONVERSATION_OWNER_REQUIRED:"تغيير دور المشرف متاح للمالك فقط.", CHANNEL_PUBLISH_REQUIRED:"النشر في القناة متاح للمالك والمشرفين فقط.", ACCOUNT_BLOCKED:"لا يمكنك مراسلة هذا الحساب لأنه حظرك أو لأن المحادثة مقيدة.", INVALID_REPORT:"تحقق من الحساب ونوع الإبلاغ.", DEVICE_ACCESS_REQUIRED:"تعذر التحقق من جهاز الإرسال؛ أعد تسجيل الدخول.", DEVICE_BOUND_TO_ANOTHER_ACCOUNT:"معرّف هذا الجهاز مرتبط بحساب آخر؛ أعد تثبيت التطبيق أو تواصل مع الدعم.", KEY_MATERIAL_UNAVAILABLE:"تم مسح مفتاح هذا الجهاز؛ لا يمكن فتح الرسائل القديمة من هذا الجهاز. أنشئ محادثة جديدة أو استعد المفتاح من جهاز موثوق.", INVALID_CONVERSATION_INPUT:"تعذر إنشاء المحادثة. حاول مرة أخرى.", INVALID_COLLECTIVE_INPUT:"تحقق من نوع المجموعة واسمها المشفّر.", INVALID_COLLECTIVE_MEMBER:"تعذر إضافة أحد الأعضاء إلى المجموعة.", ATTACHMENT_UNAVAILABLE:"الملف غير متاح أو انتهت مدة الاحتفاظ به.", NETWORK_ERROR:"تعذر الاتصال بخادم Alpha Byte.", CRYPTO_UNAVAILABLE:"هذا الجهاز لا يدعم التشفير المطلوب" }[code] || "تعذر إتمام الطلب الآن");
+const pendingInviteFromNative = () => { try { return window.AlphaByteNative?.consumePendingInviteToken?.() || ""; } catch { return ""; } };
+const messageFor = (code) => ({ ACTIVATION_REQUIRED:"رمز التفعيل غير صحيح", INVALID_ACCESS_INPUT:"تحقق من بيانات الدخول", USERNAME_UNAVAILABLE:"اسم المستخدم غير متاح", INVALID_USERNAME:"استخدم ٣–٣٢ حرفًا صغيرًا أو رقمًا أو شرطة سفلية.", INVALID_CREDENTIALS:"بيانات الدخول غير صحيحة", INVALID_PASSPHRASE_INPUT:"تحقق من العبارة السرية الجديدة؛ يلزم ١٢ حرفًا على الأقل.", CURRENT_PASSPHRASE_INVALID:"العبارة السرية الحالية غير صحيحة.", CURRENT_MESSAGE_LOCK_INVALID:"رمز الرسائل المحلي غير صحيح.", INVALID_MESSAGE_LOCK_CODE:"استخدم رمز رسائل رقميًا من ٦ إلى ٣٢ رقمًا.", INVALID_TRIAL_FEATURE:"هذه الميزة لا تتضمن تجربة مجانية.", TRIAL_ALREADY_USED:"استُخدمت التجربة المجانية لهذه الميزة سابقًا.", SESSION_REQUIRED:"انتهت جلسة هذا الجهاز", RECIPIENT_DEVICE_UNAVAILABLE:"هذا الحساب غير جاهز للمراسلة الآن؛ يجب أن يفتح Alpha Byte ويسجل جهازه أولًا.", FEATURE_APPROVAL_REQUIRED:"تحتاج موافقة المدير على هذا الامتياز.", CONVERSATION_ACCESS_REQUIRED:"لا تملك وصولًا إلى هذه المحادثة", CONVERSATION_MANAGE_REQUIRED:"هذه العملية متاحة للمالك أو المشرف فقط.", CONVERSATION_OWNER_REQUIRED:"تغيير دور المشرف متاح للمالك فقط.", CHANNEL_PUBLISH_REQUIRED:"النشر في القناة متاح للمالك والمشرفين فقط.", ACCOUNT_BLOCKED:"لا يمكنك مراسلة هذا الحساب لأنه حظرك أو لأن المحادثة مقيدة.", INVALID_REPORT:"تحقق من الحساب ونوع الإبلاغ.", DEVICE_ACCESS_REQUIRED:"تعذر التحقق من جهاز الإرسال؛ أعد تسجيل الدخول.", DEVICE_BOUND_TO_ANOTHER_ACCOUNT:"معرّف هذا الجهاز مرتبط بحساب آخر؛ أعد تثبيت التطبيق أو تواصل مع الدعم.", KEY_MATERIAL_UNAVAILABLE:"تم مسح مفتاح هذا الجهاز؛ أدخل مفتاح الاستعادة من الإعدادات إن كنت أنشأته سابقًا.", RECOVERY_BACKUP_NOT_FOUND:"لا توجد نسخة استعادة مشفّرة لهذا الحساب بعد.", INVALID_RECOVERY_KEY:"مفتاح الاستعادة غير صالح.", INVALID_RECOVERY_BACKUP:"تعذر التحقق من نسخة الاستعادة المشفّرة.", RECOVERY_BACKUP_ACCOUNT_MISMATCH:"لا تخص هذه النسخة الحساب المسجّل حاليًا.", INVALID_CONVERSATION_INPUT:"تعذر إنشاء المحادثة. حاول مرة أخرى.", INVALID_COLLECTIVE_INPUT:"تحقق من نوع المجموعة واسمها المشفّر.", INVALID_COLLECTIVE_MEMBER:"تعذر إضافة أحد الأعضاء إلى المجموعة.", ATTACHMENT_UNAVAILABLE:"الملف غير متاح أو انتهت مدة الاحتفاظ به.", NETWORK_ERROR:"تعذر الاتصال بخادم Alpha Byte.", CRYPTO_UNAVAILABLE:"هذا الجهاز لا يدعم التشفير المطلوب" }[code] || "تعذر إتمام الطلب الآن");
 
 async function api(path, method = "GET", body, headers = {}) {
   const allHeaders = { ...headers };
@@ -37,6 +42,7 @@ function resetAccountState() {
   stopConversationRefresh();
   Object.values(state.avatarUrls).forEach(url => { try { URL.revokeObjectURL(url); } catch { /* Ignore an already released object URL. */ } });
   Object.values(state.attachmentUrls).forEach(url => { try { URL.revokeObjectURL(url); } catch { /* Ignore an already released object URL. */ } });
+  if (state.attachmentDraft?.url) { try { URL.revokeObjectURL(state.attachmentDraft.url); } catch { /* Ignore an already released object URL. */ } }
   state.device = null;
   state.legacyIdentityMigrationAllowed = false;
   state.sessions = null;
@@ -57,13 +63,29 @@ function resetAccountState() {
   state.messageSearch = "";
   state.messageSearchOpen = false;
   state.replyTo = null;
+  state.attachmentDraft = null;
   state.avatarUrls = {};
   state.attachmentUrls = {};
   state.attachmentLoading = {};
   state.attachmentPreview = null;
   state.grants = [];
+  state.recovery = { unlocked: false, generatedKey: "" };
+  state.messageLock = { configured: false };
   state.reactionPicker = false;
   state.stickerPicker = false;
+}
+
+function clearAttachmentDraft() {
+  if (state.attachmentDraft?.url) { try { URL.revokeObjectURL(state.attachmentDraft.url); } catch { /* Ignore an already released object URL. */ } }
+  state.attachmentDraft = null;
+}
+
+function setAttachmentDraft(file) {
+  clearAttachmentDraft();
+  if (!file) return;
+  const mimeType = file.type || resolvedAttachmentMime({ name: file.name, mimeType: file.type });
+  const image = mimeType.startsWith("image/") || /\.(?:avif|bmp|gif|jpe?g|png|webp)$/i.test(file.name || "");
+  state.attachmentDraft = { file, name: file.name || "ملف مشفّر", mimeType, image, url: image ? URL.createObjectURL(file) : "" };
 }
 
 async function registerDevice() {
@@ -82,7 +104,76 @@ async function ensureSenderDevice() {
 
 async function loadGrants() { const data = await api("/api/native/features"); state.grants = data.grants; if (!isGranted("profile_theme")) localStorage.removeItem(profileThemeKey()); }
 async function loadSessions() { state.sessions = null; render(); try { const data = await api("/api/native/sessions"); state.sessions = data.sessions; state.currentSessionId = data.currentSessionId; } catch (error) { state.sessions = []; state.notice = messageFor(error.message); } render(); }
-async function loadConversations() { const data = await api("/api/native/conversations"); state.conversations = data.conversations; }
+async function loadConversations() { const data = await api("/api/native/conversations"); const deleted = locallyDeletedConversations(); state.conversations = data.conversations.filter(conversation => !deleted.has(conversation.id)); }
+
+async function loadRecoveryStatus() {
+  state.recovery.unlocked = Boolean(state.account?.accountId && await hasUnlockedRecoveryKey(state.account.accountId));
+}
+
+async function uploadRecoveryBackup() {
+  if (!state.account?.accountId) return false;
+  const backup = await createEncryptedRecoveryBackup(state.account.accountId);
+  if (!backup) return false;
+  await api("/api/native/recovery-backup", "PUT", backup);
+  return true;
+}
+
+function scheduleRecoveryBackup() {
+  if (!state.account?.accountId) return;
+  if (recoveryBackupTimer) clearTimeout(recoveryBackupTimer);
+  recoveryBackupTimer = setTimeout(() => { recoveryBackupTimer = null; void uploadRecoveryBackup().catch(() => { /* Local messaging is not interrupted when a backup refresh is temporarily unavailable. */ }); }, 450);
+}
+
+async function createRecoveryBackup() {
+  if (!state.account?.accountId) throw new Error("SESSION_REQUIRED");
+  const recoveryKey = createRecoveryKey();
+  await unlockRecoveryKey(state.account.accountId, recoveryKey);
+  await uploadRecoveryBackup();
+  state.recovery = { unlocked: true, generatedKey: recoveryKey };
+}
+
+async function restoreRecoveryBackup(recoveryKey) {
+  if (!state.account?.accountId) throw new Error("SESSION_REQUIRED");
+  const result = await api("/api/native/recovery-backup");
+  const restored = await restoreEncryptedRecoveryBackup(state.account.accountId, recoveryKey, result.backup);
+  state.recovery = { unlocked: true, generatedKey: "" };
+  await loadConversations();
+  scheduleRecoveryBackup();
+  return restored;
+}
+
+async function loadMessageLockStatus() {
+  state.messageLock.configured = Boolean(state.account?.accountId && await hasMessageLockCode(state.account.accountId));
+}
+
+async function changeMessageLock(currentCode, nextCode) {
+  if (!state.account?.accountId) throw new Error("SESSION_REQUIRED");
+  if (state.messageLock.configured && !await verifyMessageLockCode(state.account.accountId, currentCode)) throw new Error("CURRENT_MESSAGE_LOCK_INVALID");
+  await setMessageLockCode(state.account.accountId, nextCode);
+  state.messageLock.configured = true;
+}
+
+async function unlockMessageLock(code) {
+  if (!state.account?.accountId || !await verifyMessageLockCode(state.account.accountId, code)) throw new Error("CURRENT_MESSAGE_LOCK_INVALID");
+  state.stage = "app";
+  openPendingInvite(pendingInviteFromNative());
+}
+
+async function deleteConversationFromThisDevice() {
+  const conversationId = state.activeConversation?.id;
+  if (!conversationId || !state.account?.accountId) return;
+  await deleteLocalConversationData(state.account.accountId, conversationId);
+  rememberLocalConversationDeletion(conversationId);
+  stopConversationRefresh();
+  state.activeConversation = null;
+  state.messages = [];
+  state.view = "inbox";
+  await loadConversations();
+}
+
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") window.addEventListener("alpha-byte:conversation-key-stored", event => {
+  if (event.detail?.accountId === state.account?.accountId) scheduleRecoveryBackup();
+});
 
 function stopConversationRefresh() {
   if (conversationRefreshTimer) clearInterval(conversationRefreshTimer);
@@ -165,6 +256,7 @@ function render() {
   document.body.className = [state.dark ? "" : "light", `profile-${profileTheme()}`].filter(Boolean).join(" ");
   if (state.stage === "activation") return renderActivation();
   if (state.stage === "access") return renderAccess();
+  if (state.stage === "message-lock") return renderMessageLock();
   renderApp();
 }
 
@@ -179,7 +271,13 @@ function renderAccess() {
   document.getElementById("login-tab").onclick = () => { state.mode = "login"; state.notice = ""; render(); };
   document.getElementById("register-tab").onclick = () => { state.mode = "register"; state.notice = ""; render(); };
   document.getElementById("change-code").onclick = () => { state.stage = "activation"; state.notice = ""; render(); };
-  document.getElementById("access-form").addEventListener("submit", async event => { event.preventDefault(); const username = document.getElementById("username").value.trim(); const secret = document.getElementById("secret").value; busy(true); try { const legacyAccount = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null"); const data = await api("/api/native/access", "POST", { action: state.mode, username, secret, activationCode: state.code, deviceLabel: "Alpha Byte Android" }); resetAccountState(); localStorage.setItem(TOKEN_KEY, data.token); bindNativeSession(data.token); localStorage.setItem(ACCOUNT_KEY, JSON.stringify({ username: data.username, accountId: data.accountId })); state.account = { username: data.username, accountId: data.accountId }; state.legacyIdentityMigrationAllowed = legacyAccount?.accountId === data.accountId; await registerDevice(); await Promise.all([loadGrants(), loadConversations()]); state.stage = "app"; state.notice = ""; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  document.getElementById("access-form").addEventListener("submit", async event => { event.preventDefault(); const username = document.getElementById("username").value.trim(); const secret = document.getElementById("secret").value; busy(true); try { const legacyAccount = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null"); const data = await api("/api/native/access", "POST", { action: state.mode, username, secret, activationCode: state.code, deviceLabel: "Alpha Byte Android" }); resetAccountState(); localStorage.setItem(TOKEN_KEY, data.token); bindNativeSession(data.token); localStorage.setItem(ACCOUNT_KEY, JSON.stringify({ username: data.username, accountId: data.accountId })); state.account = { username: data.username, accountId: data.accountId }; state.legacyIdentityMigrationAllowed = legacyAccount?.accountId === data.accountId; await registerDevice(); await Promise.all([loadGrants(), loadConversations(), loadMessageLockStatus()]); state.stage = state.messageLock.configured ? "message-lock" : "app"; state.notice = ""; if (state.stage === "app") openPendingInvite(pendingInviteFromNative()); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+}
+
+function renderMessageLock() {
+  app.innerHTML = `<section class="auth-shell"><div class="auth-card"><div class="access-head"><b>Alpha Byte</b><span>قفل الرسائل المحلي</span></div><p class="auth-copy">أدخل رمز الرسائل المحفوظ على هذا الجهاز. لا يستبدل هذا الرمز عبارة دخول حسابك أو مفتاح الاستعادة.</p><form class="form" id="message-lock-form"><label class="field">رمز الرسائل<input id="message-lock-code" inputmode="numeric" autocomplete="one-time-code" type="password" minlength="6" maxlength="32" required autofocus /></label><p class="notice">${text(state.notice)}</p><button class="primary" type="submit"><span>فتح الرسائل</span><span class="arrow">‹</span></button></form><button class="link-button" id="message-lock-logout" type="button">تسجيل الخروج من هذا الجهاز</button></div></section>`;
+  document.getElementById("message-lock-form").onsubmit = async event => { event.preventDefault(); busy(true); try { await unlockMessageLock(document.getElementById("message-lock-code")?.value || ""); state.notice = ""; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  document.getElementById("message-lock-logout").onclick = () => { resetAccountState(); localStorage.removeItem(TOKEN_KEY); clearNativeSession(); localStorage.removeItem(ACCOUNT_KEY); state.stage = "activation"; state.account = null; state.code = ""; render(); };
 }
 
 const sessionSection = () => {
@@ -188,7 +286,17 @@ const sessionSection = () => {
   return `<p class="session-title">الأجهزة والجلسات</p>${state.sessions.map(item => `<div class="device"><span><strong>${text(item.deviceLabel || "جهاز غير مسمى")}${item.id === state.currentSessionId ? " · هذا الجهاز" : ""}</strong><small>${item.state === "active" ? "نشطة" : "ملغاة"}</small></span>${item.state === "active" ? `<button class="revoke" data-revoke="${text(item.id)}" type="button">إبطال</button>` : "<span>◌</span>"}</div>`).join("")}`;
 };
 
-function featureTiles() { const catalog = [["verified_badge","شارة تحقق Alpha","تظهر بجانب اسمك"],["sticker_pack","ملصقات حصرية","حزمة رموز موسعة"],["profile_theme","مظهر حساب حصري","ألوان وهوية مميزة"]]; return `<div class="feature-grid">${catalog.map(([key,label,description]) => `<button class="feature-tile ${isGranted(key) ? "granted" : ""}" data-feature="${key}" type="button"><strong>${text(label)}</strong><small>${isGranted(key) ? "مفعلة" : `طلب موافقة · ${text(description)}`}</small></button>`).join("")}</div>`; }
+function recoverySection() {
+  const generated = state.recovery.generatedKey ? `<div class="recovery-key"><strong>انسخ مفتاح الاستعادة الآن</strong><code>${text(state.recovery.generatedKey)}</code><small>لن يظهر هذا المفتاح مرة أخرى، ولا يُحفظ كنص في التطبيق أو الخادم.</small><button id="copy-recovery-key" type="button">نسخ المفتاح</button><button id="dismiss-recovery-key" type="button">فهمت، أخفيه</button></div>` : "";
+  const create = state.recovery.unlocked ? '<button class="setting" id="backup-recovery-now" type="button"><span><strong>تحديث النسخة المشفّرة الآن</strong><small>نسخ مفاتيح المحادثات المتاحة على هذا الجهاز</small></span><i class="setting-icon">↻</i></button>' : '<button class="setting" id="create-recovery-key" type="button"><span><strong>إنشاء مفتاح استعادة</strong><small>يلزم لاستعادة مفاتيح محادثاتك على هاتف جديد</small></span><i class="setting-icon">⌁</i></button>';
+  return `<section class="recovery-section"><p class="session-title">استعادة المحادثات المشفّرة</p>${generated}<div class="settings-card">${create}</div><form class="recovery-restore" id="restore-recovery-form"><label class="field">مفتاح الاستعادة<input id="recovery-key-input" autocomplete="off" spellcheck="false" placeholder="ألصق مفتاحك هنا" required /></label><button class="secondary" type="submit">استعادة من النسخة المشفّرة</button></form><p class="muted">تستعيد المفاتيح فقط؛ لا تستعيد ذاكرة المرفقات أو هوية الجهاز. قد لا تتوفر رسائل انتهت مدة الاحتفاظ الخادمية بها (حدها أسبوع).</p></section>`;
+}
+
+function featureTiles() { const catalog = [["verified_badge","شارة تحقق Alpha","تظهر بجانب اسمك"],["sticker_pack","ملصقات حصرية","حزمة رموز موسعة"],["profile_theme","مظهر حساب حصري","ألوان وهوية مميزة"]]; return `<div class="feature-grid">${catalog.map(([key,label,description]) => { const grant = state.grants.find(item => item.featureKey === key); const trial = key === "sticker_pack" || key === "profile_theme"; const status = grant ? (grant.expiresAt ? `تجربة حتى ${new Intl.DateTimeFormat("ar", { day:"numeric", month:"short" }).format(new Date(grant.expiresAt))}` : "مفعلة") : (trial ? `تجربة مجانية ٣ أيام · ${text(description)}` : `طلب موافقة · ${text(description)}`); return `<button class="feature-tile ${grant ? "granted" : ""}" ${grant ? "" : trial ? `data-trial="${key}"` : `data-feature="${key}"`} type="button"><strong>${text(label)}</strong><small>${status}</small></button>`; }).join("")}</div>`; }
+
+function accountSecuritySection() {
+  return `<section class="account-security"><p class="session-title">الحساب والقفل المحلي</p><form class="settings-form" id="username-form"><label class="field">اسم المستخدم<input id="account-username" value="${text(state.account?.username || "")}" pattern="[a-z0-9_]{3,32}" autocomplete="username" required /></label><button class="secondary" type="submit">حفظ اسم المستخدم</button></form><form class="settings-form" id="passphrase-form"><label class="field">العبارة السرية الحالية<input id="current-passphrase" type="password" autocomplete="current-password" required /></label><label class="field">عبارة سرية جديدة<input id="next-passphrase" type="password" minlength="12" autocomplete="new-password" required /></label><button class="secondary" type="submit">تغيير عبارة الدخول</button></form><form class="settings-form" id="message-lock-settings-form"><label class="field">${state.messageLock.configured ? "رمز الرسائل الحالي" : "رمز الرسائل"}<input id="current-message-lock" inputmode="numeric" type="password" minlength="6" maxlength="32" ${state.messageLock.configured ? "required" : ""} /></label><label class="field">${state.messageLock.configured ? "رمز رسائل جديد" : "تعيين رمز رسائل"}<input id="next-message-lock" inputmode="numeric" type="password" minlength="6" maxlength="32" required /></label><button class="secondary" type="submit">${state.messageLock.configured ? "تغيير رمز الرسائل" : "تفعيل قفل الرسائل"}</button><p class="muted">هذا القفل محلي لهذا الجهاز فقط، وليس عبارة دخول الحساب أو مفتاح الاستعادة.</p></form></section>`;
+}
 
 function profileThemePicker() {
   if (!isGranted("profile_theme")) return "";
@@ -226,7 +334,7 @@ function renderApp() {
   if (state.view === "inbox") content = `<section class="inbox-title"><div><p class="eyebrow">${text(account.username)}</p><h1>Alpha Byte</h1></div><button class="compose" id="open-people" type="button" aria-label="محادثة جديدة">＋</button></section><button class="collective-cta" id="open-collective" type="button"><span class="collective-cta-icon">◈</span><span><strong>إنشاء مجموعة أو قناة</strong><small>مجانًا · اسم وصورة وأدوار مالك ومشرف وعضو</small></span><i>‹</i></button><button class="invite-join-toggle" id="open-invite-join" type="button">لديك رابط دعوة؟ انضم بطلب موافقة <i>‹</i></button>${state.inviteJoin.open ? `<form class="invite-join-form" id="invite-join-form"><input id="invite-join-input" value="${text(state.inviteJoin.value)}" placeholder="الصق رابط أو رمز الدعوة" autocomplete="off"/><button type="submit">إرسال الطلب</button></form>` : ""}${conversationList()}`;
   if (state.view === "people") content = `<section class="page"><div class="page-head"><span class="page-icon">⌕</span><h2>الأشخاص</h2></div><label class="search-box"><input id="people-search" value="${text(state.search)}" placeholder="ابحث باسم المستخدم" autocomplete="off" /><span>⌕</span></label><div class="people-results">${peopleResults()}</div></section>`;
   if (state.view === "collective-create") content = renderCollectiveBuilder();
-  if (state.view === "settings") content = `<section class="page"><div class="page-head"><span class="page-icon">⚙</span><h2>الإعدادات</h2></div><div class="settings-card"><div class="setting"><span><strong>${text(account.username)}${isGranted("verified_badge") ? ' <b class="verified-badge">✓ موثّق</b>' : ""}</strong><small>${text(account.accountId)}</small></span><i class="setting-icon">◉</i></div><button class="setting" id="theme-toggle"><span><strong>المظهر</strong><small>${state.dark ? "داكن" : "فاتح"}</small></span><i class="setting-icon">◐</i></button><button class="setting" id="receipt-toggle"><span><strong>إيصالات القراءة</strong><small>${state.receipts ? "مفعلة" : "متوقفة"}</small></span><i class="setting-icon">✓</i></button><div class="setting permission-note"><span><strong>الصور والملفات</strong><small>اختيار من منتقي النظام، والكاميرا تطلب الإذن عند استخدامها فقط.</small></span><i class="setting-icon">⌁</i></div></div><p class="session-title">امتيازات الحساب</p>${featureTiles()}${profileThemePicker()}${sessionSection()}<div class="settings-card"><button class="setting danger" id="logout"><span><strong>تسجيل الخروج</strong><small>إنهاء جلسة هذا الجهاز</small></span><i class="setting-icon">×</i></button></div></section>`;
+  if (state.view === "settings") content = `<section class="page"><div class="page-head"><span class="page-icon">⚙</span><h2>الإعدادات</h2></div><div class="settings-card"><div class="setting"><span><strong>${text(account.username)}${isGranted("verified_badge") ? ' <b class="verified-badge">✓ موثّق</b>' : ""}</strong><small>${text(account.accountId)}</small></span><i class="setting-icon">◉</i></div><button class="setting" id="theme-toggle"><span><strong>المظهر</strong><small>${state.dark ? "داكن" : "فاتح"}</small></span><i class="setting-icon">◐</i></button><button class="setting" id="receipt-toggle"><span><strong>إيصالات القراءة</strong><small>${state.receipts ? "مفعلة" : "متوقفة"}</small></span><i class="setting-icon">✓</i></button><div class="setting permission-note"><span><strong>الصور والملفات</strong><small>اختيار من منتقي النظام، والكاميرا تطلب الإذن عند استخدامها فقط.</small></span><i class="setting-icon">⌁</i></div></div>${accountSecuritySection()}${recoverySection()}<p class="session-title">امتيازات الحساب</p>${featureTiles()}${profileThemePicker()}${sessionSection()}<div class="settings-card"><button class="setting danger" id="logout"><span><strong>تسجيل الخروج</strong><small>إنهاء جلسة هذا الجهاز</small></span><i class="setting-icon">×</i></button></div></section>`;
   if (state.view === "conversation" && state.activeConversation) content = renderConversation();
   app.innerHTML = `<main class="app-shell ${state.view === "conversation" ? "chat-shell" : ""}">${state.view !== "conversation" ? `<header class="topbar">${mark().replace('class="mark"','class="mark mark-sm"')}<button class="icon-button" id="settings-button" type="button" aria-label="الإعدادات">⚙</button></header>` : ""}${state.notice ? `<p class="app-notice" role="status">${text(state.notice)}</p>` : ""}${content}</main>${state.view !== "conversation" ? `<nav class="nav"><button class="${state.view === "inbox" ? "current" : ""}" data-view="inbox"><i>✦</i><span>المحادثات</span></button><button class="${state.view === "people" ? "current" : ""}" data-view="people"><i>⌕</i><span>الأشخاص</span></button><button class="${state.view === "settings" ? "current" : ""}" data-view="settings"><i>⚙</i><span>الإعدادات</span></button></nav>` : ""}`;
   bindApp();
@@ -241,13 +349,13 @@ function renderConversationTools() {
   if (admin.loading) return '<section class="conversation-tools"><p class="muted">جارٍ تحميل أدوات المحادثة…</p></section>';
   if (!collective) {
     const peer = admin.members.find(member => member.accountId !== state.account?.accountId);
-    return `<section class="conversation-tools"><p class="tools-title">خصوصية المحادثة</p><p class="muted">${peer ? `الحساب: ${text(peer.username || peer.accountId)}` : "جارٍ التحقق من الطرف الآخر."}</p><div class="tools-actions"><button data-report-peer="spam" type="button">إبلاغ عن إزعاج</button><button class="danger" id="block-peer" type="button">حظر الحساب</button></div></section>`;
+    return `<section class="conversation-tools"><p class="tools-title">خصوصية المحادثة</p><p class="muted">${peer ? `الحساب: ${text(peer.username || peer.accountId)}` : "جارٍ التحقق من الطرف الآخر."}</p><div class="tools-actions"><button data-report-peer="spam" type="button">إبلاغ عن إزعاج</button><button class="danger" id="block-peer" type="button">حظر الحساب</button><button class="danger" id="delete-local-conversation" type="button">حذف من هذا الجهاز</button></div><p class="muted">يحذف المفتاح والنسخة المخزنة محليًا فقط؛ لا يحذف رسائل الطرف الآخر أو النسخ الخادمية المحتفظ بها مؤقتًا.</p></section>`;
   }
   const members = admin.members.map(member => { const canChangeRole = state.activeConversation.memberRole === "owner" && member.memberRole !== "owner"; const canRemove = manager && member.memberRole !== "owner" && (state.activeConversation.memberRole === "owner" || member.memberRole === "member"); return `<div class="managed-member"><span><strong>${text(member.username || member.accountId)}</strong><small>${member.memberRole === "owner" ? "المالك" : member.memberRole === "admin" ? "مشرف" : "عضو"}</small></span>${canChangeRole ? `<button data-manage-role="${text(member.accountId)}" data-next-role="${member.memberRole === "admin" ? "member" : "admin"}" type="button">${member.memberRole === "admin" ? "إزالة الإشراف" : "ترقية مشرف"}</button>` : ""}${canRemove ? `<button class="danger" data-manage-remove="${text(member.accountId)}" type="button">إخراج</button>` : ""}</div>`; }).join("") || '<p class="muted">لا توجد عضوية ظاهرة.</p>';
   const addResults = admin.people.filter(person => !admin.members.some(member => member.accountId === person.accountId)).map(person => `<button class="tool-search-row" data-manage-add="${text(person.accountId)}" data-manage-name="${text(person.username)}" type="button"><span>${text(person.username)}</span><b>إضافة</b></button>`).join("");
   const links = admin.links.map(link => `<div class="invite-link-row"><span><strong>رابط دعوة</strong><small>${link.state === "active" ? "نشط · يطلب موافقة مدير لإضافة المفتاح" : "ملغى"}</small></span>${link.state === "active" ? `<button class="danger" data-invite-revoke="${text(link.id)}" type="button">إلغاء</button>` : ""}</div>`).join("");
   const joinRequests = admin.joinRequests.map(request => `<div class="invite-link-row"><span><strong>${text(request.username || request.requesterAccountId)}</strong><small>طلب انضمام عبر رابط</small></span><button data-join-approve="${text(request.id)}" data-join-account="${text(request.requesterAccountId)}" type="button">قبول</button><button class="danger" data-join-decline="${text(request.id)}" data-join-account="${text(request.requesterAccountId)}" type="button">رفض</button></div>`).join("");
-  return `<section class="conversation-tools"><div class="tools-head"><p class="tools-title">إدارة ${state.activeConversation.kind === "channel" ? "القناة" : "المجموعة"}</p><button id="close-conversation-tools" type="button">إغلاق</button></div>${manager ? `<form id="manage-title-form" class="manage-title"><input id="manage-title" value="${text(accountNames()[state.activeConversation.id] || "")}" maxlength="64" placeholder="اسم المساحة"/><button type="submit">حفظ الاسم</button></form><label class="manage-avatar">تحديث الصورة المشفّرة<input id="manage-avatar" type="file" accept="image/*" hidden /></label><div class="invite-create"><button id="create-invite-link" type="button">إنشاء رابط دعوة</button>${admin.newLink ? `<button id="copy-invite-link" type="button">نسخ الرابط</button>` : ""}</div>${admin.newLink ? `<p class="invite-value">${text(admin.newLink)}</p>` : ""}` : '<p class="muted">عرض الأعضاء متاح لك؛ التعديل للمالك أو المشرف فقط.</p>'}<p class="tools-subtitle">الأعضاء</p>${members}${manager ? `<label class="tool-search"><input id="manage-member-search" value="${text(admin.search)}" placeholder="ابحث لإضافة عضو" autocomplete="off"/><span>⌕</span></label><div class="manage-search-results">${addResults || (admin.search.length >= 2 ? '<p class="muted">لا توجد حسابات جاهزة للإضافة.</p>' : "")}</div><p class="tools-subtitle">طلبات الانضمام</p>${joinRequests || '<p class="muted">لا توجد طلبات معلقة.</p>'}<p class="tools-subtitle">روابط الدعوة</p>${links || '<p class="muted">لا يوجد رابط نشط بعد.</p>'}` : ""}</section>`;
+  return `<section class="conversation-tools"><div class="tools-head"><p class="tools-title">إدارة ${state.activeConversation.kind === "channel" ? "القناة" : "المجموعة"}</p><button id="close-conversation-tools" type="button">إغلاق</button></div><div class="tools-actions"><button class="danger" id="delete-local-conversation" type="button">حذف من هذا الجهاز</button></div><p class="muted">يحذف المفتاح والنسخة المحلية فقط، ولا يزيل المجموعة أو القناة من بقية الأعضاء.</p>${manager ? `<form id="manage-title-form" class="manage-title"><input id="manage-title" value="${text(accountNames()[state.activeConversation.id] || "")}" maxlength="64" placeholder="اسم المساحة"/><button type="submit">حفظ الاسم</button></form><label class="manage-avatar">تحديث الصورة المشفّرة<input id="manage-avatar" type="file" accept="image/*" hidden /></label><div class="invite-create"><button id="create-invite-link" type="button">إنشاء رابط دعوة</button>${admin.newLink ? `<button id="copy-invite-link" type="button">نسخ الرابط</button>` : ""}</div>${admin.newLink ? `<p class="invite-value">${text(admin.newLink)}</p>` : ""}` : '<p class="muted">عرض الأعضاء متاح لك؛ التعديل للمالك أو المشرف فقط.</p>'}<p class="tools-subtitle">الأعضاء</p>${members}${manager ? `<label class="tool-search"><input id="manage-member-search" value="${text(admin.search)}" placeholder="ابحث لإضافة عضو" autocomplete="off"/><span>⌕</span></label><div class="manage-search-results">${addResults || (admin.search.length >= 2 ? '<p class="muted">لا توجد حسابات جاهزة للإضافة.</p>' : "")}</div><p class="tools-subtitle">طلبات الانضمام</p>${joinRequests || '<p class="muted">لا توجد طلبات معلقة.</p>'}<p class="tools-subtitle">روابط الدعوة</p>${links || '<p class="muted">لا يوجد رابط نشط بعد.</p>'}` : ""}</section>`;
 }
 
 function renderConversation() {
@@ -257,7 +365,8 @@ function renderConversation() {
   const items = filteredMessages.map(message => { const clear = message.clear || {}; const direction = message.senderDeviceId === state.device?.deviceId ? "outgoing" : "incoming"; const meta = `<small class="message-meta">${text(messageTime(message.serverReceivedAt))}</small>`; const reply = clear.replyTo ? `<div class="reply-context"><span>رد على رسالة</span><p>${text(clear.replyPreview || "رسالة مشفّرة")}</p></div>` : ""; const actions = clear.kind === "text" ? `<div class="message-actions"><button data-message-reply="${text(message.id)}" type="button">رد</button><button data-message-copy="${text(clear.text || "")}" type="button">نسخ</button></div>` : ""; if (clear.kind === "reaction") return `<div class="reaction-event">${text(clear.emoji || "✦")} تفاعل مشفّر</div>`; if (clear.kind === "sticker") return `<div class="sticker-event ${direction}"><b>${text(clear.glyph || "✦")}</b><span>${text(clear.label || "ALPHA")}</span>${meta}</div>`; if (clear.kind === "attachment") { const attachmentId = text(clear.attachmentId || ""); const preview = state.attachmentUrls[clear.attachmentId]; const image = isImageAttachment(clear); return `<div class="message-bubble attachment-card ${direction}">${reply}${image && preview ? `<button class="image-preview" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button"><img src="${text(preview)}" alt="صورة مشفّرة بعد فكها محليًا"/></button>` : ""}<strong>${image ? "صورة مشفّرة" : "ملف مشفّر"}</strong><small>${text(attachmentName(clear))}</small><button class="file-open" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button">${image ? "عرض بعد فك التشفير" : "تنزيل بعد فك التشفير"}</button>${meta}</div>`; } if (clear.kind === "unreadable") return '<div class="reaction-event">تعذر فتح رسالة مشفّرة على هذا الجهاز.</div>'; return `<div class="message-bubble ${direction}">${reply}<p>${text(clear.text || "")}</p>${actions}${meta}</div>`; }).join("") || '<section class="empty compact"><div class="empty-ring">✦</div><p>لا توجد رسائل مطابقة</p><small>جرّب كلمة مختلفة أو امسح البحث.</small></section>';
   const reactions = ["👍", "❤️", "😂", "😮", "😢"];
   const stickers = [["✦", "ALPHA"], ["◈", "BYTE"], ["↗", "RISE"], ["∞", "PRIVATE"]];
-  const composer = channelReadOnly ? '<p class="channel-readonly">هذه قناة: النشر متاح للمالك والمشرفين فقط.</p>' : `<form class="composer" id="message-form"><input id="message-text" placeholder="رسالة مشفّرة" autocomplete="off" ${state.busy ? "disabled" : ""}/><select id="expiry" ${state.busy ? "disabled" : ""}><option value="day" ${state.expiry === "day" ? "selected" : ""}>يوم</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>أسبوع</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>شهر*</option></select><label class="attach ${state.busy ? "disabled" : ""}" title="اختيار ملف">＋<input id="attachment-file" type="file" hidden ${state.busy ? "disabled" : ""}/></label><button class="attach camera" id="camera-button" type="button" title="التقاط صورة" ${state.busy ? "disabled" : ""}>◉</button><input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${state.busy ? "disabled" : ""}/><button class="send" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "جارٍ الإرسال…" : "↑"}</button></form>`;
+  const attachmentDraft = state.attachmentDraft ? `<section class="attachment-draft" aria-label="مرفق قبل الإرسال">${state.attachmentDraft.image ? `<img src="${text(state.attachmentDraft.url)}" alt="معاينة قبل الإرسال"/>` : '<span class="draft-file-icon">⌁</span>'}<span><strong>${text(state.attachmentDraft.name)}</strong><small>${state.attachmentDraft.image ? "صورة جاهزة للتشفير" : "ملف جاهز للتشفير"}</small></span><button id="remove-attachment-draft" type="button" aria-label="إزالة المرفق">×</button></section>` : "";
+  const composer = channelReadOnly ? '<p class="channel-readonly">هذه قناة: النشر متاح للمالك والمشرفين فقط.</p>' : `${attachmentDraft}<form class="composer" id="message-form"><button class="send" type="submit" aria-label="إرسال" ${state.busy ? "disabled" : ""}>${state.busy ? '<span class="send-pending">جارٍ الإرسال…</span>' : "➤"}</button><label class="attach ${state.busy ? "disabled" : ""}" title="اختيار صورة أو ملف"><span>⌇</span><input id="attachment-file" type="file" accept="image/*,application/pdf,text/plain,.doc,.docx,.zip" hidden ${state.busy ? "disabled" : ""}/></label><input id="message-text" placeholder="اكتب رسالة" autocomplete="off" ${state.busy ? "disabled" : ""}/><select id="expiry" aria-label="مدة الاحتفاظ" ${state.busy ? "disabled" : ""}><option value="day" ${state.expiry === "day" ? "selected" : ""}>١ي</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>٧ي</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>٣٠ي</option></select><button class="attach camera" id="camera-button" type="button" title="التقاط صورة" ${state.busy ? "disabled" : ""}>⌾</button><input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${state.busy ? "disabled" : ""}/></form>`;
   const conversationAvatar = state.activeConversation.avatarUrl ? `<img class="conversation-avatar" src="${text(state.activeConversation.avatarUrl)}" alt=""/>` : `<span class="conversation-avatar conversation-avatar-fallback">${text(name.slice(0, 1).toUpperCase())}</span>`;
   const preview = state.attachmentPreview ? `<div class="attachment-modal" role="dialog" aria-modal="true"><button id="close-attachment-preview" type="button" aria-label="إغلاق">×</button><img src="${text(state.attachmentPreview.url)}" alt="${text(state.attachmentPreview.name)}"/><p>${text(state.attachmentPreview.name)}</p></div>` : "";
   const messageSearch = state.messageSearchOpen ? `<form class="message-search" id="message-search-form"><input id="message-search-input" value="${text(state.messageSearch)}" placeholder="ابحث في الرسائل المفتوحة على هذا الجهاز" autocomplete="off"/><button type="submit">بحث</button><button id="clear-message-search" type="button">مسح</button></form>` : "";
@@ -387,7 +496,7 @@ async function createCollectiveInviteLink() {
   const conversation = state.activeConversation;
   if (!conversation) return;
   const result = await api(`/api/native/conversations/${conversation.id}/invite-links`, "POST");
-  const link = `https://abmessenger-miwecp5v.manus.space/join?invite=${encodeURIComponent(result.token)}`;
+  const link = `alphabyte://join?invite=${encodeURIComponent(result.token)}`;
   state.collectiveAdmin.links = [{ id: result.id, state: "active", createdAt: new Date().toISOString(), link }, ...state.collectiveAdmin.links];
   state.collectiveAdmin.newLink = link;
 }
@@ -441,6 +550,19 @@ function inviteTokenFromInput(value) {
   const raw = String(value || "").trim();
   if (/^[A-Za-z0-9_-]{20,64}$/.test(raw)) return raw;
   try { return new URL(raw).searchParams.get("invite") || ""; } catch { return ""; }
+}
+
+function openPendingInvite(token) {
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(String(token || ""))) return;
+  state.inviteJoin = { open: true, value: `alphabyte://join?invite=${token}` };
+  if (state.stage !== "app") return;
+  state.view = "inbox";
+  state.busy = true;
+  render();
+  void requestInviteJoin(String(token)).catch(error => {
+    state.inviteJoin = { open: true, value: `alphabyte://join?invite=${token}` };
+    state.notice = error.message === "ALREADY_A_MEMBER" ? "أنت عضو بالفعل في هذه المساحة." : messageFor(error.message);
+  }).finally(() => { state.busy = false; render(); });
 }
 
 async function requestInviteJoin(value) {
@@ -533,8 +655,8 @@ async function openAttachment(attachmentId, filename, mimeType) {
 }
 
 function bindApp() {
-  document.querySelectorAll("[data-view]").forEach(button => button.onclick = async () => { state.view = button.dataset.view; if (state.view === "settings") { render(); await Promise.all([loadSessions(), loadGrants()]); } else render(); });
-  const settings = document.getElementById("settings-button"); if (settings) settings.onclick = async () => { state.view = "settings"; render(); await Promise.all([loadSessions(), loadGrants()]); };
+  document.querySelectorAll("[data-view]").forEach(button => button.onclick = async () => { state.view = button.dataset.view; if (state.view === "settings") { render(); await Promise.all([loadSessions(), loadGrants(), loadRecoveryStatus(), loadMessageLockStatus()]); render(); } else render(); });
+  const settings = document.getElementById("settings-button"); if (settings) settings.onclick = async () => { state.view = "settings"; render(); await Promise.all([loadSessions(), loadGrants(), loadRecoveryStatus(), loadMessageLockStatus()]); render(); };
   const openPeople = document.getElementById("open-people"); if (openPeople) openPeople.onclick = () => { state.view = "people"; render(); };
   const openCollective = document.getElementById("open-collective"); if (openCollective) openCollective.onclick = () => { state.view = "collective-create"; state.notice = ""; render(); };
   const openInviteJoin = document.getElementById("open-invite-join"); if (openInviteJoin) openInviteJoin.onclick = () => { state.inviteJoin.open = !state.inviteJoin.open; render(); };
@@ -550,8 +672,17 @@ function bindApp() {
   const theme = document.getElementById("theme-toggle"); if (theme) theme.onclick = () => { state.dark = !state.dark; localStorage.setItem("alpha-byte.theme", state.dark ? "dark" : "light"); render(); };
   document.querySelectorAll("[data-profile-theme]").forEach(button => button.onclick = () => { if (!isGranted("profile_theme")) return; localStorage.setItem(profileThemeKey(), button.dataset.profileTheme); render(); });
   const receipts = document.getElementById("receipt-toggle"); if (receipts) receipts.onclick = () => { state.receipts = !state.receipts; localStorage.setItem("alpha-byte.receipts", state.receipts ? "on" : "off"); render(); };
+  const createRecovery = document.getElementById("create-recovery-key"); if (createRecovery) createRecovery.onclick = async () => { busy(true); try { await createRecoveryBackup(); state.notice = "تم إنشاء نسخة مفاتيح مشفّرة. انسخ مفتاح الاستعادة الآن واحفظه في مكان آمن."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const backupRecovery = document.getElementById("backup-recovery-now"); if (backupRecovery) backupRecovery.onclick = async () => { busy(true); try { await uploadRecoveryBackup(); state.notice = "تم تحديث النسخة المشفّرة للمفاتيح المتاحة على هذا الجهاز."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const copyRecovery = document.getElementById("copy-recovery-key"); if (copyRecovery) copyRecovery.onclick = () => copyText(state.recovery.generatedKey);
+  const dismissRecovery = document.getElementById("dismiss-recovery-key"); if (dismissRecovery) dismissRecovery.onclick = () => { state.recovery.generatedKey = ""; render(); };
+  const restoreRecovery = document.getElementById("restore-recovery-form"); if (restoreRecovery) restoreRecovery.onsubmit = async event => { event.preventDefault(); busy(true); try { const restored = await restoreRecoveryBackup(document.getElementById("recovery-key-input")?.value || ""); state.notice = restored ? `تمت استعادة مفاتيح ${restored} محادثة على هذا الجهاز.` : "لم تتضمن النسخة أي مفتاح محادثة متاح."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const usernameForm = document.getElementById("username-form"); if (usernameForm) usernameForm.onsubmit = async event => { event.preventDefault(); busy(true); try { const username = document.getElementById("account-username")?.value || ""; const result = await api("/api/native/account/username", "POST", { username }); state.account.username = result.username; localStorage.setItem(ACCOUNT_KEY, JSON.stringify({ ...state.account })); state.notice = "تم تغيير اسم المستخدم."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const passphraseForm = document.getElementById("passphrase-form"); if (passphraseForm) passphraseForm.onsubmit = async event => { event.preventDefault(); busy(true); try { await api("/api/native/account/passphrase", "POST", { currentSecret: document.getElementById("current-passphrase")?.value || "", nextSecret: document.getElementById("next-passphrase")?.value || "" }); state.notice = "تم تغيير عبارة الدخول؛ لا تتغير مفاتيح محادثاتك."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const messageLockForm = document.getElementById("message-lock-settings-form"); if (messageLockForm) messageLockForm.onsubmit = async event => { event.preventDefault(); busy(true); try { await changeMessageLock(document.getElementById("current-message-lock")?.value || "", document.getElementById("next-message-lock")?.value || ""); state.notice = "تم حفظ رمز الرسائل محليًا على هذا الجهاز."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   const logout = document.getElementById("logout"); if (logout) logout.onclick = () => { resetAccountState(); localStorage.removeItem(TOKEN_KEY); clearNativeSession(); localStorage.removeItem(ACCOUNT_KEY); state.stage = "activation"; state.account = null; state.code = ""; state.view = "inbox"; render(); };
   document.querySelectorAll("[data-revoke]").forEach(button => button.onclick = async () => { try { const result = await api(`/api/native/sessions/${button.dataset.revoke}/revoke`, "POST"); if (result.currentSessionRevoked) { resetAccountState(); localStorage.removeItem(TOKEN_KEY); clearNativeSession(); state.stage = "activation"; state.account = null; render(); } else loadSessions(); } catch (error) { setNotice(messageFor(error.message)); } });
+  document.querySelectorAll("[data-trial]").forEach(button => button.onclick = async () => { busy(true); try { const result = await api("/api/native/features/trial", "POST", { featureKey: button.dataset.trial }); state.grants.push({ featureKey: result.trial.featureKey, state: "enabled", grantedAt: new Date().toISOString(), expiresAt: result.trial.expiresAt }); state.notice = "بدأت تجربة الميزة لمدة ثلاثة أيام."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
   document.querySelectorAll("[data-feature]").forEach(button => button.onclick = async () => { if (isGranted(button.dataset.feature)) return; try { await api("/api/native/feature-requests", "POST", { featureKey: button.dataset.feature }); state.notice = "أُرسل طلبك إلى المدير للمراجعة"; } catch (error) { state.notice = messageFor(error.message); } render(); });
   const back = document.getElementById("back-inbox"); if (back) back.onclick = () => { stopConversationRefresh(); state.view = "inbox"; state.activeConversation = null; render(); };
   const messageSearchToggle = document.getElementById("message-search-toggle"); if (messageSearchToggle) messageSearchToggle.onclick = () => { state.messageSearchOpen = !state.messageSearchOpen; render(); };
@@ -573,15 +704,18 @@ function bindApp() {
   document.querySelectorAll("[data-invite-revoke]").forEach(button => button.onclick = async () => { busy(true); try { await revokeCollectiveLink(button.dataset.inviteRevoke); state.notice = "تم إلغاء رابط الدعوة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
   document.querySelectorAll("[data-join-approve]").forEach(button => button.onclick = async () => { busy(true); try { await decideCollectiveJoinRequest(button.dataset.joinApprove, button.dataset.joinAccount, "approve"); state.notice = "تم قبول الطلب وتغليف مفتاح المساحة للعضو"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
   document.querySelectorAll("[data-join-decline]").forEach(button => button.onclick = async () => { busy(true); try { await decideCollectiveJoinRequest(button.dataset.joinDecline, button.dataset.joinAccount, "decline"); state.notice = "تم رفض طلب الانضمام"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
+  const deleteLocalConversation = document.getElementById("delete-local-conversation"); if (deleteLocalConversation) deleteLocalConversation.onclick = async () => { if (typeof window.confirm === "function" && !window.confirm("حذف المفتاح والنسخة المحلية من هذا الجهاز فقط؟")) return; busy(true); try { await deleteConversationFromThisDevice(); state.notice = "تم حذف المحادثة من هذا الجهاز فقط."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   const blockPeer = document.getElementById("block-peer"); if (blockPeer) blockPeer.onclick = async () => { busy(true); try { await blockConversationPeer(); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   document.querySelectorAll("[data-report-peer]").forEach(button => button.onclick = async () => { busy(true); try { await reportConversationPeer(button.dataset.reportPeer); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); });
   const reaction = document.getElementById("reaction-button"); if (reaction) reaction.onclick = () => { state.reactionPicker = !state.reactionPicker; render(); };
   document.querySelectorAll("[data-reaction]").forEach(button => button.onclick = async () => { try { await sendReaction(button.dataset.reaction); state.reactionPicker = false; } catch (error) { state.notice = messageFor(error.message); render(); } });
   const sticker = document.getElementById("sticker-button"); if (sticker) sticker.onclick = () => { state.stickerPicker = !state.stickerPicker; render(); };
   document.querySelectorAll("[data-sticker-glyph]").forEach(button => button.onclick = async () => { try { await sendSticker(button.dataset.stickerGlyph, button.dataset.stickerLabel); state.stickerPicker = false; } catch (error) { state.notice = messageFor(error.message); render(); } });
-  const attachmentInput = document.getElementById("attachment-file"); if (attachmentInput) attachmentInput.onclick = () => { try { window.AlphaByteNative?.requestMediaPermission?.(); } catch { /* Browser preview uses the system file chooser. */ } };
+  const attachmentInput = document.getElementById("attachment-file"); if (attachmentInput) { attachmentInput.onclick = () => { try { window.AlphaByteNative?.requestMediaPermission?.(); } catch { /* Browser preview uses the system file chooser. */ } }; attachmentInput.onchange = event => { setAttachmentDraft(event.target.files?.[0]); render(); }; }
   const cameraButton = document.getElementById("camera-button"); if (cameraButton) cameraButton.onclick = () => { try { window.AlphaByteNative?.requestCameraPermission?.(); } catch { /* Browser preview uses the system file chooser. */ } document.getElementById("camera-file")?.click(); };
-  const form = document.getElementById("message-form"); if (form) form.onsubmit = async event => { event.preventDefault(); const input = document.getElementById("message-text"); const attachment = document.getElementById("attachment-file")?.files?.[0] || document.getElementById("camera-file")?.files?.[0]; state.expiry = document.getElementById("expiry").value; if (!input.value.trim() && !attachment) return; busy(true); try { await sendEnvelope(input.value, attachment); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const cameraFile = document.getElementById("camera-file"); if (cameraFile) cameraFile.onchange = event => { setAttachmentDraft(event.target.files?.[0]); render(); };
+  const removeAttachmentDraft = document.getElementById("remove-attachment-draft"); if (removeAttachmentDraft) removeAttachmentDraft.onclick = () => { clearAttachmentDraft(); render(); };
+  const form = document.getElementById("message-form"); if (form) form.onsubmit = async event => { event.preventDefault(); const input = document.getElementById("message-text"); const attachment = state.attachmentDraft?.file || null; state.expiry = document.getElementById("expiry").value; if (!input.value.trim() && !attachment) return; busy(true); try { await sendEnvelope(input.value, attachment); clearAttachmentDraft(); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   const createCollectiveButton = document.getElementById("create-collective"); if (createCollectiveButton) createCollectiveButton.onclick = async () => { const title = document.getElementById("collective-title")?.value || ""; busy(true); try { await createCollective(state.collective.kind, title, state.collective.avatarFile); state.notice = "تم إنشاء المساحة المشفّرة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   document.querySelectorAll("[data-attachment-open]").forEach(button => button.onclick = async () => { try { await openAttachment(button.dataset.attachmentOpen, button.dataset.fileName, button.dataset.fileMime); } catch (error) { state.notice = messageFor(error.message); render(); } });
   const closeAttachmentPreview = document.getElementById("close-attachment-preview"); if (closeAttachmentPreview) closeAttachmentPreview.onclick = () => { state.attachmentPreview = null; render(); };
@@ -597,9 +731,10 @@ function bindCollectiveButtons() {
 
 async function restoreSession() {
   if (!sessionToken()) return render();
-  try { const legacyAccount = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null"); const data = await api("/api/native/session"); resetAccountState(); state.account = { username: data.username, accountId: data.accountId }; state.legacyIdentityMigrationAllowed = legacyAccount?.accountId === data.accountId; state.currentSessionId = data.sessionId; await registerDevice(); await Promise.all([loadGrants(), loadConversations()]); state.stage = "app"; }
+  try { const legacyAccount = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null"); const data = await api("/api/native/session"); resetAccountState(); state.account = { username: data.username, accountId: data.accountId }; state.legacyIdentityMigrationAllowed = legacyAccount?.accountId === data.accountId; state.currentSessionId = data.sessionId; await registerDevice(); await Promise.all([loadGrants(), loadConversations(), loadMessageLockStatus()]); state.stage = state.messageLock.configured ? "message-lock" : "app"; if (state.stage === "app") openPendingInvite(pendingInviteFromNative()); }
   catch { resetAccountState(); localStorage.removeItem(TOKEN_KEY); clearNativeSession(); localStorage.removeItem(ACCOUNT_KEY); }
   render();
 }
 
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") window.addEventListener("alpha-byte-invite", event => openPendingInvite(event.detail));
 restoreSession();

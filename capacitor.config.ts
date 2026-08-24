@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.qarfash.abuser",
-  appName: "AB",
+  appName: "Alpha Byte",
   webDir: "web",
 };
 

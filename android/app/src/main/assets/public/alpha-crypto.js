@@ -1,6 +1,8 @@
 const DB_NAME = "alpha-byte-keys";
 const DEVICE_KEY = "alpha-byte-device-id";
 const LEGACY_IDENTITY_OWNER_KEY = "alpha-byte.legacy-identity-owner";
+const RECOVERY_BACKUP_VERSION = "ab-recovery-v1";
+const RECOVERY_KDF_ITERATIONS = 300000;
 
 const toB64 = (bytes) => {
   let raw = "";
@@ -140,10 +142,135 @@ export async function openConversationKey(sealed, identity) {
 
 export async function storeConversationKey(accountId, conversationId, key) {
   await putStored(`conversation:${scopeFor(accountId)}:${conversationId}`, key);
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+    window.dispatchEvent(new CustomEvent("alpha-byte:conversation-key-stored", { detail: { accountId, conversationId } }));
+  }
 }
 
 export async function getConversationKey(accountId, conversationId) {
   return getStored(`conversation:${scopeFor(accountId)}:${conversationId}`);
+}
+
+function recoveryRecordName(accountId) { return `recovery-key:${scopeFor(accountId)}`; }
+function messageLockRecordName(accountId) { return `message-lock:${scopeFor(accountId)}`; }
+
+function normalizedRecoveryKey(value) {
+  if (typeof value !== "string") throw new Error("RECOVERY_KEY_REQUIRED");
+  const normalized = value.replace(/[\s.]/g, "");
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(normalized)) throw new Error("INVALID_RECOVERY_KEY");
+  return normalized;
+}
+
+async function deriveRecoveryKey(recoveryKey, salt) {
+  const source = await crypto.subtle.importKey("raw", new TextEncoder().encode(normalizedRecoveryKey(recoveryKey)), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: RECOVERY_KDF_ITERATIONS, hash: "SHA-256" }, source, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+
+export function createRecoveryKey() {
+  const value = toB64(crypto.getRandomValues(new Uint8Array(24)));
+  return value.match(/.{1,4}/g).join(".");
+}
+
+/** Persists only a non-extractable derived key and public salt on this device; the recovery key itself is never stored. */
+export async function unlockRecoveryKey(accountId, recoveryKey, knownSalt) {
+  const salt = knownSalt ? fromB64(knownSalt) : crypto.getRandomValues(new Uint8Array(16));
+  if (salt.byteLength < 16 || salt.byteLength > 64) throw new Error("INVALID_RECOVERY_SALT");
+  const key = await deriveRecoveryKey(recoveryKey, salt);
+  const record = { version: RECOVERY_BACKUP_VERSION, kdfSalt: toB64(salt), key };
+  await putStored(recoveryRecordName(accountId), record);
+  return { version: record.version, kdfSalt: record.kdfSalt };
+}
+
+export async function hasUnlockedRecoveryKey(accountId) {
+  const record = await getStored(recoveryRecordName(accountId));
+  return Boolean(record?.key && record?.version === RECOVERY_BACKUP_VERSION && record?.kdfSalt);
+}
+
+async function listConversationKeyRecords(accountId) {
+  const db = await openStore();
+  const prefix = `conversation:${scopeFor(accountId)}:`;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("keys", "readonly");
+    const store = tx.objectStore("keys");
+    const records = [];
+    const request = store.openCursor();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return resolve(records);
+      if (typeof cursor.key === "string" && cursor.key.startsWith(prefix) && cursor.value && (typeof CryptoKey === "undefined" || cursor.value instanceof CryptoKey)) {
+        records.push({ conversationId: cursor.key.slice(prefix.length), key: cursor.value });
+      }
+      cursor.continue();
+    };
+  });
+}
+
+/** Produces only an AES-GCM ciphertext suitable for the opaque server backup endpoint. */
+export async function createEncryptedRecoveryBackup(accountId) {
+  const record = await getStored(recoveryRecordName(accountId));
+  if (!record?.key || record.version !== RECOVERY_BACKUP_VERSION || typeof record.kdfSalt !== "string") return undefined;
+  const keys = await listConversationKeyRecords(accountId);
+  const conversationKeys = [];
+  for (const item of keys) conversationKeys.push({ conversationId: item.conversationId, rawKey: toB64(await crypto.subtle.exportKey("raw", item.key)) });
+  const encryptedBackup = await encryptJson(record.key, { version: RECOVERY_BACKUP_VERSION, accountScope: scopeFor(accountId), createdAt: Date.now(), conversationKeys });
+  return { backupVersion: RECOVERY_BACKUP_VERSION, kdfSalt: record.kdfSalt, encryptedBackup };
+}
+
+export async function restoreEncryptedRecoveryBackup(accountId, recoveryKey, backup) {
+  if (!backup || backup.backupVersion !== RECOVERY_BACKUP_VERSION || typeof backup.kdfSalt !== "string" || typeof backup.encryptedBackup !== "string") throw new Error("INVALID_RECOVERY_BACKUP");
+  await unlockRecoveryKey(accountId, recoveryKey, backup.kdfSalt);
+  const record = await getStored(recoveryRecordName(accountId));
+  const decoded = await decryptJson(record.key, backup.encryptedBackup);
+  if (!decoded || decoded.version !== RECOVERY_BACKUP_VERSION || decoded.accountScope !== scopeFor(accountId) || !Array.isArray(decoded.conversationKeys)) throw new Error("RECOVERY_BACKUP_ACCOUNT_MISMATCH");
+  let restored = 0;
+  for (const item of decoded.conversationKeys) {
+    if (!item || typeof item.conversationId !== "string" || !/^[A-Za-z0-9_-]{8,96}$/.test(item.conversationId) || typeof item.rawKey !== "string") continue;
+    const rawKey = fromB64(item.rawKey);
+    if (rawKey.byteLength !== 32) continue;
+    await storeConversationKey(accountId, item.conversationId, await crypto.subtle.importKey("raw", rawKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]));
+    restored += 1;
+  }
+  return restored;
+}
+
+/** Deletes keys and cached ciphertext only from the current device and account scope. */
+export async function deleteLocalConversationData(accountId, conversationId) {
+  const scopedAccount = scopeFor(accountId);
+  const db = await openStore();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(["keys", "messages"], "readwrite");
+    tx.objectStore("keys").delete(`conversation:${scopedAccount}:${conversationId}`);
+    const messages = tx.objectStore("messages");
+    const request = messages.index("accountConversation").openCursor(IDBKeyRange.only([scopedAccount, conversationId]));
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => { const cursor = request.result; if (cursor) { cursor.delete(); cursor.continue(); } };
+    tx.onabort = () => reject(tx.error);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+async function messageLockDigest(code, salt) {
+  if (typeof code !== "string" || !/^\d{6,32}$/.test(code)) throw new Error("INVALID_MESSAGE_LOCK_CODE");
+  const source = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 200000, hash: "SHA-256" }, source, 256);
+  return toB64(bits);
+}
+
+/** Local-only application lock; this is not an account credential, recovery secret, or a replacement for native secure storage. */
+export async function hasMessageLockCode(accountId) {
+  return Boolean(await getStored(messageLockRecordName(accountId)));
+}
+
+export async function setMessageLockCode(accountId, code) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  await putStored(messageLockRecordName(accountId), { salt: toB64(salt), digest: await messageLockDigest(code, salt) });
+}
+
+export async function verifyMessageLockCode(accountId, code) {
+  const record = await getStored(messageLockRecordName(accountId));
+  if (!record?.salt || !record?.digest) return false;
+  return (await messageLockDigest(code, fromB64(record.salt))) === record.digest;
 }
 
 /** Stores ciphertext envelopes only; cleartext is decrypted in memory by the caller. */
