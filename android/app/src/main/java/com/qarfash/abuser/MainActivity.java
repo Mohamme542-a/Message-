@@ -516,7 +516,8 @@ public class MainActivity extends Activity {
         StringBuilder raw = new StringBuilder();
         String line;
         while ((line = reader.readLine()) != null) raw.append(line);
-        main.post(() -> callback.done(new JSONObject(raw.toString())));
+        JSONObject result = new JSONObject(raw.toString());
+        main.post(() -> callback.done(result));
       } catch (Exception ignored) {
         main.post(() -> {
           message("تعذر الاتصال بالخادم");
