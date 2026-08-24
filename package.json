@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/prepare-capacitor-webdir.mjs"
+    "build": "node scripts/verify-local-web-bundle.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.0",
