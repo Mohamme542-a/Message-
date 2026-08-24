@@ -1,4 +1,4 @@
-import { createConversationKeyMaterial, decryptFile, decryptJson, encryptFile, encryptJson, fromB64, getConversationKey, getDeviceIdentity, openConversationKey, sealConversationKey, storeConversationKey, toB64 } from "./alpha-crypto.js";
+import { cacheCiphertextMessages, createConversationKeyMaterial, decryptFile, decryptJson, encryptFile, encryptJson, fromB64, getCachedCiphertextMessages, getConversationKey, getDeviceIdentity, openConversationKey, sealConversationKey, storeConversationKey, toB64 } from "./alpha-crypto.js";
 
 const API = "https://abmessenger-miwecp5v.manus.space";
 const TOKEN_KEY = "alpha-byte.session";
@@ -47,8 +47,11 @@ async function openConversation(conversation) {
     const result = await api(`/api/native/conversations/${conversation.id}/messages`);
     if (!key && result.encryptedConversationKey) { key = await openConversationKey(result.encryptedConversationKey, state.device); await storeConversationKey(conversation.id, key); }
     if (!key) throw new Error("CRYPTO_UNAVAILABLE");
+    await cacheCiphertextMessages(conversation.id, result.messages);
+    const cached = await getCachedCiphertextMessages(conversation.id);
+    const envelopes = Array.from(new Map([...cached, ...result.messages].map(envelope => [envelope.id, envelope])).values());
     const messages = [];
-    for (const envelope of result.messages) {
+    for (const envelope of envelopes) {
       try { messages.push({ ...envelope, clear: await decryptJson(key, envelope.encryptedPayload) }); } catch { messages.push({ ...envelope, clear: { kind: "unreadable" } }); }
     }
     state.activeConversation = { ...conversation, key };
@@ -103,7 +106,7 @@ function renderApp() {
 function renderConversation() {
   const name = accountNames()[state.activeConversation.id] || "محادثة خاصة";
   const items = state.messages.map(message => { const clear = message.clear || {}; if (clear.kind === "reaction") return `<div class="reaction-event">${text(clear.emoji || "✦")} تفاعل مشفّر</div>`; if (clear.kind === "attachment") return `<div class="message-bubble"><strong>ملف مشفّر</strong><small>${text(clear.name || "مرفق")}</small><button class="file-open" data-download="${text(clear.attachmentId || "")}" data-file-name="${text(clear.name || "alpha-byte-file")}" type="button">فتح بعد فك التشفير</button></div>`; if (clear.kind === "unreadable") return '<div class="reaction-event">تعذر فتح رسالة مشفّرة على هذا الجهاز.</div>'; return `<div class="message-bubble"><p>${text(clear.text || "")}</p><small>حذف الخادم: خلال أسبوع</small></div>`; }).join("") || '<section class="empty compact"><div class="empty-ring">✦</div><p>لا توجد رسائل بعد</p><small>ابدأ رسالة مشفّرة من جهازك.</small></section>';
-  return `<section class="conversation-page"><div class="conversation-head"><button class="back-button" id="back-inbox">›</button><div><strong>${text(name)}</strong><small>مشفّرة من طرف إلى طرف</small></div><button class="icon-button small" id="reaction-button">☺</button></div><div class="message-scroll">${items}</div><form class="composer" id="message-form"><input id="message-text" placeholder="رسالة مشفّرة" autocomplete="off" /><select id="expiry"><option value="day" ${state.expiry === "day" ? "selected" : ""}>يوم</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>أسبوع</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>شهر*</option></select>${isGranted("attachments") ? '<label class="attach">＋<input id="attachment-file" type="file" hidden /></label>' : '<button class="attach disabled" id="ask-attachments" type="button">＋</button>'}<button class="send" type="submit">↑</button></form><p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p></section>`;
+  return `<section class="conversation-page"><div class="conversation-head"><button class="back-button" id="back-inbox">›</button><div><strong>${text(name)}</strong><small>تشفير محلي قبل الإرسال</small></div><button class="icon-button small" id="reaction-button">☺</button></div><div class="message-scroll">${items}</div><form class="composer" id="message-form"><input id="message-text" placeholder="رسالة مشفّرة" autocomplete="off" /><select id="expiry"><option value="day" ${state.expiry === "day" ? "selected" : ""}>يوم</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>أسبوع</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>شهر*</option></select>${isGranted("attachments") ? '<label class="attach">＋<input id="attachment-file" type="file" hidden /></label>' : '<button class="attach disabled" id="ask-attachments" type="button">＋</button>'}<button class="send" type="submit">↑</button></form><p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p></section>`;
 }
 
 async function startConversation(accountId, username) {
@@ -128,14 +131,15 @@ async function sendEnvelope(value, attachmentFile) {
   const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const expiryMap = { day: 24 * 60 * 60 * 1000, week: 7 * 24 * 60 * 60 * 1000, month: 30 * 24 * 60 * 60 * 1000 };
   let payload = { kind: "text", text: value.trim() };
+  const expiresAt = Date.now() + expiryMap[state.expiry];
   if (attachmentFile) {
     const cipher = await encryptFile(conversation.key, attachmentFile);
-    const uploaded = await api("/api/native/attachments", "POST", cipher, { "Content-Type": "application/octet-stream", "x-alpha-message-id": messageId });
+    const uploaded = await api("/api/native/attachments", "POST", cipher, { "Content-Type": "application/octet-stream", "x-alpha-message-id": messageId, "x-alpha-conversation-id": conversation.id, "x-alpha-retention-deadline": String(expiresAt) });
     payload = { kind: "attachment", name: attachmentFile.name, attachmentId: uploaded.attachmentId };
   }
   const encryptedPayload = await encryptJson(conversation.key, payload);
-  const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-E2EE-1" });
-  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: state.device.deviceId, encryptedPayload, encryptedHeader, requiredFeature: attachmentFile ? "attachments" : undefined, expiresAt: Date.now() + expiryMap[state.expiry] });
+  const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-LOCAL-1" });
+  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: state.device.deviceId, encryptedPayload, encryptedHeader, requiredFeature: attachmentFile ? "attachments" : undefined, expiresAt });
   await openConversation(conversation);
 }
 
@@ -143,15 +147,14 @@ async function sendReaction(emoji) {
   const conversation = state.activeConversation; if (!conversation?.key) return;
   const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const encryptedPayload = await encryptJson(conversation.key, { kind: "reaction", emoji });
-  const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-E2EE-1" });
+  const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-LOCAL-1" });
   await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: state.device.deviceId, encryptedPayload, encryptedHeader, requiredFeature: "reactions", expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
   await openConversation(conversation);
 }
 
 async function downloadAttachment(attachmentId, filename) {
   const conversation = state.activeConversation; if (!conversation?.key || !attachmentId) return;
-  const info = await api(`/api/native/attachments/${attachmentId}`);
-  const response = await fetch(`${API}${info.url}`, { headers: { Authorization: `Bearer ${sessionToken()}` } });
+  const response = await fetch(`${API}/api/native/attachments/${encodeURIComponent(attachmentId)}`, { headers: { Authorization: `Bearer ${sessionToken()}` } });
   if (!response.ok) throw new Error("ATTACHMENT_UNAVAILABLE");
   const clear = await decryptFile(conversation.key, new Uint8Array(await response.arrayBuffer()));
   const objectUrl = URL.createObjectURL(new Blob([clear], { type: "application/octet-stream" }));

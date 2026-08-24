@@ -1,4 +1,4 @@
-name: Build AB User APK
+name: Build Alpha Byte APK
 
 on:
   push:
@@ -66,6 +66,39 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: AB-User-debug-APK
+          name: Alpha-Byte-debug-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Prepare optional signed release
+        if: ${{ secrets.ALPHA_KEYSTORE_BASE64 != '' && secrets.ALPHA_KEYSTORE_PASSWORD != '' && secrets.ALPHA_KEY_ALIAS != '' && secrets.ALPHA_KEY_PASSWORD != '' }}
+        working-directory: android
+        env:
+          ALPHA_KEYSTORE_BASE64: ${{ secrets.ALPHA_KEYSTORE_BASE64 }}
+          ALPHA_KEYSTORE_PASSWORD: ${{ secrets.ALPHA_KEYSTORE_PASSWORD }}
+          ALPHA_KEY_ALIAS: ${{ secrets.ALPHA_KEY_ALIAS }}
+          ALPHA_KEY_PASSWORD: ${{ secrets.ALPHA_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$ALPHA_KEYSTORE_BASE64" | base64 --decode > alpha-byte-release.jks
+          cat > signing.properties <<EOF
+          storeFile=alpha-byte-release.jks
+          storePassword=$ALPHA_KEYSTORE_PASSWORD
+          keyAlias=$ALPHA_KEY_ALIAS
+          keyPassword=$ALPHA_KEY_PASSWORD
+          EOF
+          fingerprint="$(keytool -list -v -keystore alpha-byte-release.jks -storepass "$ALPHA_KEYSTORE_PASSWORD" -alias "$ALPHA_KEY_ALIAS" -keypass "$ALPHA_KEY_PASSWORD" | awk -F': ' '/SHA256:/{gsub(/:/, "", $2); print $2; exit}')"
+          test -n "$fingerprint"
+          echo "ALPHA_RELEASE_CERT_SHA256=$fingerprint" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        if: ${{ env.ALPHA_RELEASE_CERT_SHA256 != '' }}
+        working-directory: android
+        run: ./gradlew assembleRelease -PALPHA_RELEASE_CERT_SHA256="$ALPHA_RELEASE_CERT_SHA256" --no-daemon
+
+      - name: Upload signed release APK
+        if: ${{ env.ALPHA_RELEASE_CERT_SHA256 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alpha-Byte-signed-release-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error

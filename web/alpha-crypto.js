@@ -15,9 +15,14 @@ const fromB64 = (value) => {
 
 function openStore() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore("keys");
+      const db = request.result;
+      if (!db.objectStoreNames.contains("keys")) db.createObjectStore("keys");
+      if (!db.objectStoreNames.contains("messages")) {
+        const messages = db.createObjectStore("messages", { keyPath: "id" });
+        messages.createIndex("conversationId", "conversationId", { unique: false });
+      }
     };
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
@@ -114,6 +119,48 @@ export async function storeConversationKey(conversationId, key) {
 
 export async function getConversationKey(conversationId) {
   return getStored(`conversation:${conversationId}`);
+}
+
+/** Stores ciphertext envelopes only; cleartext is decrypted in memory by the caller. */
+export async function cacheCiphertextMessages(conversationId, envelopes) {
+  const db = await openStore();
+  const now = Date.now();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("messages", "readwrite");
+    const store = tx.objectStore("messages");
+    for (const envelope of envelopes) {
+      if (!envelope?.id || envelope.conversationId && envelope.conversationId !== conversationId) continue;
+      if (envelope.expiresAt && new Date(envelope.expiresAt).getTime() <= now) {
+        store.delete(envelope.id);
+      } else {
+        store.put({ id: envelope.id, conversationId, envelope, cachedAt: now, expiresAt: envelope.expiresAt || null });
+      }
+    }
+    tx.onabort = () => reject(tx.error);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+/** Returns unexpired ciphertext cached on this device and removes any locally expired copies. */
+export async function getCachedCiphertextMessages(conversationId) {
+  const db = await openStore();
+  const now = Date.now();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("messages", "readwrite");
+    const store = tx.objectStore("messages");
+    const request = store.index("conversationId").getAll(IDBKeyRange.only(conversationId));
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const records = request.result || [];
+      const active = [];
+      for (const record of records) {
+        if (record.expiresAt && new Date(record.expiresAt).getTime() <= now) store.delete(record.id);
+        else active.push(record.envelope);
+      }
+      tx.oncomplete = () => resolve(active.sort((a, b) => new Date(a.serverReceivedAt || 0) - new Date(b.serverReceivedAt || 0)));
+    };
+    tx.onabort = () => reject(tx.error);
+  });
 }
 
 export async function encryptJson(key, value) {
