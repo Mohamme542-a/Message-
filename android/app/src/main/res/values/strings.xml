@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">AB</string>
-    <string name="title_activity_main">AB</string>
+    <string name="app_name">Alpha Byte</string>
+    <string name="title_activity_main">Alpha Byte</string>
     <string name="package_name">com.qarfash.abuser</string>
     <string name="custom_url_scheme">com.qarfash.abuser</string>
 </resources>
