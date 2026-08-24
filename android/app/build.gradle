@@ -4,6 +4,9 @@ android {
     namespace = "com.qarfash.abuser"
     compileSdk = rootProject.ext.compileSdkVersion
     def integrityFingerprint = (project.findProperty("ALPHA_RELEASE_CERT_SHA256") ?: "").toString().replaceAll("[^A-Fa-f0-9]", "")
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         applicationId "com.qarfash.abuser"
         minSdkVersion rootProject.ext.minSdkVersion
