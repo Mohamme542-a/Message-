@@ -1,5 +1,6 @@
 package com.qarfash.abuser;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
@@ -22,6 +23,7 @@ public class MainActivity extends BridgeActivity {
     private static final String PREFS = "alpha_byte_integrity";
     private static final String SESSION_TOKEN = "session_token";
     private static final String INTEGRITY_FAILURE_URL = "https://abmessenger-miwecp5v.manus.space/api/native/integrity/failure";
+    private static final int CAMERA_PERMISSION_REQUEST = 141;
 
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
@@ -92,6 +94,15 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void clearSession() {
             clearRememberedSession();
+        }
+
+        @JavascriptInterface
+        public void requestCameraPermission() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST);
+                }
+            });
         }
     }
 }
