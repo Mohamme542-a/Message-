@@ -11,10 +11,10 @@ export const Route = createFileRoute("/_authenticated/security/$id")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "مركز الأمان — AB" },
-      { name: "description", content: "تحقق من رقم الأمان وحالة التشفير لهذه المحادثة في AB." },
-      { property: "og:title", content: "مركز الأمان — AB" },
-      { property: "og:description", content: "تحقق من هوية جهة الاتصال في AB." },
+      { title: "مركز الأمان — Alpha Byte" },
+      { name: "description", content: "تحقق من رقم الأمان وحالة التشفير لهذه المحادثة في Alpha Byte." },
+      { property: "og:title", content: "مركز الأمان — Alpha Byte" },
+      { property: "og:description", content: "تحقق من هوية جهة الاتصال في Alpha Byte." },
     ],
   }),
   component: SecurityCenter,

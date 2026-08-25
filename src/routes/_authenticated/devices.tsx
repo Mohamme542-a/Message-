@@ -12,10 +12,10 @@ export const Route = createFileRoute("/_authenticated/devices")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "الأجهزة — AB" },
-      { name: "description", content: "راجع أجهزتك المسجّلة في AB وأبطل أي جهاز لا تعرفه." },
-      { property: "og:title", content: "الأجهزة — AB" },
-      { property: "og:description", content: "إدارة أجهزة AB ومفاتيحها العامة." },
+      { title: "الأجهزة — Alpha Byte" },
+      { name: "description", content: "راجع أجهزتك المسجّلة في Alpha Byte وأبطل أي جهاز لا تعرفه." },
+      { property: "og:title", content: "الأجهزة — Alpha Byte" },
+      { property: "og:description", content: "إدارة أجهزة Alpha Byte ومفاتيحها العامة." },
     ],
   }),
   component: DevicesPage,

@@ -7,10 +7,10 @@ export const Route = createFileRoute("/_authenticated/calls")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "المكالمات — AB" },
-      { name: "description", content: "حالة المكالمات المشفّرة في AB وخطة تفعيلها عبر WebRTC." },
-      { property: "og:title", content: "المكالمات — AB" },
-      { property: "og:description", content: "المكالمات المشفّرة في AB." },
+      { title: "المكالمات — Alpha Byte" },
+      { name: "description", content: "حالة المكالمات المشفّرة في Alpha Byte وخطة تفعيلها عبر WebRTC." },
+      { property: "og:title", content: "المكالمات — Alpha Byte" },
+      { property: "og:description", content: "المكالمات المشفّرة في Alpha Byte." },
     ],
   }),
   component: CallsPage,

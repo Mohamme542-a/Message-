@@ -15,10 +15,10 @@ export const Route = createFileRoute("/_authenticated/contacts")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "جهات الاتصال — AB" },
-      { name: "description", content: "ابحث باسم المستخدم وأرسل طلبات محادثة؛ AB لا يرفع دفتر هاتفك." },
-      { property: "og:title", content: "جهات الاتصال — AB" },
-      { property: "og:description", content: "بحث باسم المستخدم فقط في AB." },
+      { title: "جهات الاتصال — Alpha Byte" },
+      { name: "description", content: "ابحث باسم المستخدم وأرسل طلبات محادثة؛ Alpha Byte لا يرفع دفتر هاتفك." },
+      { property: "og:title", content: "جهات الاتصال — Alpha Byte" },
+      { property: "og:description", content: "بحث باسم المستخدم فقط في Alpha Byte." },
     ],
   }),
   component: ContactsPage,

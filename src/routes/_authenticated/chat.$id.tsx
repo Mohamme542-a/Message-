@@ -22,10 +22,10 @@ export const Route = createFileRoute("/_authenticated/chat/$id")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "محادثة مشفّرة — AB" },
-      { name: "description", content: "محادثة AB مشفّرة من طرف إلى طرف؛ الخادم يخزّن النص المشفّر فقط." },
-      { property: "og:title", content: "محادثة مشفّرة — AB" },
-      { property: "og:description", content: "محادثة AB مشفّرة من طرف إلى طرف." },
+      { title: "محادثة مشفّرة — Alpha Byte" },
+      { name: "description", content: "محادثة Alpha Byte مشفّرة من طرف إلى طرف؛ الخادم يخزّن النص المشفّر فقط." },
+      { property: "og:title", content: "محادثة مشفّرة — Alpha Byte" },
+      { property: "og:description", content: "محادثة Alpha Byte مشفّرة من طرف إلى طرف." },
     ],
   }),
   component: ChatPage,

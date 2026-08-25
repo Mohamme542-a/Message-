@@ -27,10 +27,10 @@ export const Route = createFileRoute("/_authenticated/settings")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "الإعدادات — AB" },
-      { name: "description", content: "إدارة ملفك الشخصي وخصوصيتك وقفل التطبيق في AB." },
-      { property: "og:title", content: "الإعدادات — AB" },
-      { property: "og:description", content: "إعدادات الخصوصية والأمان في AB." },
+      { title: "الإعدادات — Alpha Byte" },
+      { name: "description", content: "إدارة ملفك الشخصي وخصوصيتك وقفل التطبيق في Alpha Byte." },
+      { property: "og:title", content: "الإعدادات — Alpha Byte" },
+      { property: "og:description", content: "إعدادات الخصوصية والأمان في Alpha Byte." },
     ],
   }),
   component: SettingsPage,

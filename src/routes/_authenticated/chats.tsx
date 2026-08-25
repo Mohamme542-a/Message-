@@ -13,10 +13,10 @@ export const Route = createFileRoute("/_authenticated/chats")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "المحادثات — AB" },
-      { name: "description", content: "كل محادثاتك في AB مشفّرة من طرف إلى طرف على جهازك." },
-      { property: "og:title", content: "المحادثات — AB" },
-      { property: "og:description", content: "محادثات AB المشفّرة من طرف إلى طرف." },
+      { title: "المحادثات — Alpha Byte" },
+      { name: "description", content: "كل محادثاتك في Alpha Byte مشفّرة من طرف إلى طرف على جهازك." },
+      { property: "og:title", content: "المحادثات — Alpha Byte" },
+      { property: "og:description", content: "محادثات Alpha Byte المشفّرة من طرف إلى طرف." },
     ],
   }),
   component: ChatsPage,

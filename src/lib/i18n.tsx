@@ -78,7 +78,7 @@ const dictionary = {
     "disappearing.1d": "يوم",
     "disappearing.1w": "أسبوع",
     "disappearing.note":
-      "حذف الرسالة من AB لا يضمن عدم احتفاظ الطرف الآخر بنسخة (لقطة شاشة، تصوير، جهاز آخر).",
+      "حذف الرسالة من Alpha Byte لا يضمن عدم احتفاظ الطرف الآخر بنسخة (لقطة شاشة، تصوير، جهاز آخر).",
 
     "contacts.title": "جهات الاتصال",
     "contacts.search": "ابحث باسم المستخدم",
@@ -195,7 +195,7 @@ const dictionary = {
     "maintenance.title": "Alpha Byte متوقف مؤقتاً للصيانة",
     "maintenance.retry": "إعادة المحاولة",
     "update.title": "تحديث مطلوب",
-    "update.desc": "إصدارك من AB لم يعد مدعوماً. حدّث التطبيق للمتابعة.",
+    "update.desc": "إصدارك من Alpha Byte لم يعد مدعوماً. حدّث التطبيق للمتابعة.",
 
     "common.cancel": "إلغاء",
     "common.confirm": "تأكيد",
@@ -243,7 +243,7 @@ const dictionary = {
     "recovery.ack": "I stored the code safely",
     "recovery.continue": "Continue",
 
-    "lock.title": "AB is locked",
+    "lock.title": "Alpha Byte is locked",
     "lock.pin": "Enter PIN",
     "lock.passphrase": "Enter passphrase",
     "lock.unlock": "Unlock",
@@ -283,7 +283,7 @@ const dictionary = {
     "disappearing.1d": "1 day",
     "disappearing.1w": "1 week",
     "disappearing.note":
-      "Deleting a message in AB does not guarantee the other side kept no copy (screenshot, camera, another device).",
+      "Deleting a message in Alpha Byte does not guarantee the other side kept no copy (screenshot, camera, another device).",
 
     "contacts.title": "Contacts",
     "contacts.search": "Search by username",
@@ -298,7 +298,7 @@ const dictionary = {
     "contacts.unblock": "Unblock",
     "contacts.report": "Report",
     "contacts.none": "No user with that username",
-    "contacts.noUpload": "AB never uploads your phone book. Username search only.",
+    "contacts.noUpload": "Alpha Byte never uploads your phone book. Username search only.",
     "contacts.openChat": "Open chat",
 
     "calls.title": "Calls",
@@ -366,7 +366,7 @@ const dictionary = {
     "sc.keyChanged": "This contact's keys changed! Verify their identity before continuing.",
     "sc.compare": "Compare this number with your contact's device over a trusted channel.",
 
-    "admin.title": "AB Admin Console",
+    "admin.title": "Alpha Byte Admin Console",
     "admin.login": "Admin sign in",
     "admin.denied": "This account has no administrative role.",
     "admin.dashboard": "Dashboard",
@@ -397,10 +397,10 @@ const dictionary = {
     "admin.save": "Save configuration",
     "admin.searchUser": "Search by user ID or username",
 
-    "maintenance.title": "AB is temporarily unavailable for maintenance.",
+    "maintenance.title": "Alpha Byte is temporarily unavailable for maintenance.",
     "maintenance.retry": "Retry",
     "update.title": "Update required",
-    "update.desc": "Your build of AB is no longer supported. Please update to continue.",
+    "update.desc": "Your build of Alpha Byte is no longer supported. Please update to continue.",
 
     "common.cancel": "Cancel",
     "common.confirm": "Confirm",

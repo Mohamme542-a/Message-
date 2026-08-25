@@ -18,10 +18,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "لوحة تحكم AB" },
-      { name: "description", content: "لوحة إدارة AB: الإحصائيات والمستخدمون والبلاغات والصيانة." },
-      { property: "og:title", content: "لوحة تحكم AB" },
-      { property: "og:description", content: "إدارة AB دون أي وصول إلى محتوى الرسائل." },
+      { title: "لوحة تحكم Alpha Byte" },
+      { name: "description", content: "لوحة إدارة Alpha Byte: الإحصائيات والمستخدمون والبلاغات والصيانة." },
+      { property: "og:title", content: "لوحة تحكم Alpha Byte" },
+      { property: "og:description", content: "إدارة Alpha Byte دون أي وصول إلى محتوى الرسائل." },
     ],
   }),
   component: AdminPage,
