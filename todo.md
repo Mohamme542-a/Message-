@@ -170,8 +170,8 @@
 - [x] Make the Android back button navigate within Alpha Byte first, then ask for exit confirmation only at the root screen.
 - [x] Repair chat-history scrolling so viewing older messages never forces the user back to the latest message.
 - [x] Make notifications quiet while the recipient is actively using Alpha Byte and retain alerts only for inactive/background sessions.
-- [ ] Add a continuously animated verification badge for eligible profiles without fabricating verification status.
-- [ ] Add encrypted profile photos and professional group creation and management controls.
-- [ ] Add reply-to-message, typing indicators, and rich media/video attachment support.
-- [ ] Implement admin-issued subscription codes with controlled duration and user redemption flow.
-- [ ] Diagnose and repair the video-send failure shown in the supplied recording.
+- [x] Add a continuously animated verification badge for eligible profiles without fabricating verification status.
+- [x] Add encrypted profile photos and professional group creation and management controls.
+- [x] Add reply-to-message, typing indicators, and rich media/video attachment support.
+- [x] Implement admin-issued subscription codes with controlled duration and user redemption flow.
+- [x] Diagnose and repair the video-send failure shown in the supplied recording.
