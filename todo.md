@@ -1,0 +1,140 @@
+# Project TODO
+
+- [x] Define the AB visual system, bilingual copy map, mobile-first navigation model, and light/dark design tokens.
+- [x] Create the AB monogram splash/onboarding flow and account creation screen without phone or email fields.
+- [x] Implement username selection, generated public User ID display, passphrase guidance, and recovery-key warning UI.
+- [x] Create protected metadata-only database tables for profiles, devices, conversations, conversation requests, ciphertext messages, reports, audit records, and remote configuration.
+- [x] Implement typed server procedures for non-sensitive account, conversation-request, device, moderation, and maintenance operations.
+- [x] Add validated Firebase and Cloudinary integration contracts that keep secrets server-side and document required runtime variables without embedding credentials.
+- [x] Add a browser-safe crypto integration boundary and documentation stating that audited E2EE protocol and secure native key storage are required before production use.
+- [x] Build the mobile-first inbox, conversation list, bottom navigation, pull-to-refresh affordance, swipe-action affordance, and offline outbox state.
+- [x] Build an interactive conversation screen with text sending, reply, reaction, search, status, temporary-message controls, attachment states, and privacy indicators.
+- [x] Build a Security Center with verification status, safety-number/QR placeholders, key-change warning, and a clear no-decryption-by-admin statement.
+- [x] Build contacts, request, block, profile, devices, privacy, app-lock, emergency-mode, and data-management settings screens.
+- [x] Implement Arabic/English language selection with RTL/LTR layout handling and a persistent light/dark mode switch.
+- [x] Build an RBAC-protected admin area with non-sensitive analytics, user actions, device/session controls, reports, maintenance, remote config, update policy, notifications, and audit log UI.
+- [x] Implement a maintenance-mode gate that displays a configurable notice without ever exposing message plaintext or private keys.
+- [x] Add responsive, keyboard-safe, accessible states for loading, empty, error, offline, and destructive actions.
+- [x] Write GitHub-ready README and architectural documentation covering Firebase, Cloudinary, Capacitor, real E2EE, native lock/biometric constraints, and deployment boundaries; secret names are documented for the managed secret store instead of a repository environment file.
+- [x] Add Vitest coverage for core server-side validation and administrative security boundaries.
+- [x] Validate type-checking, test suite, and desktop/mobile visual rendering; mark all completed work above.
+- [x] Document required Firebase and Cloudinary secret names in the integration contract and README using the platform-managed secret store; no .env.example file is created because environment files are managed outside the repository.
+- [x] Run the production build and verify the compiled client and server bundles complete successfully.
+- [x] Create a clean project archive and deliver it to the user-designated Telegram chat without exposing the bot credential in the archive.
+- [x] Configure Firebase and Cloudinary through server-side managed secrets, validate readiness, and keep encryption and private keys outside both services.
+- [x] Replace the existing AB experience with a new black, native-style visual system using only the AB name and monogram in the product UI.
+- [x] Remove all fake messages, fake metrics, demo contacts, and preview-only content from the new user-facing experience.
+- [x] Implement real account access flows for creating an AB account and signing into an existing AB account without phone or email requirements.
+- [x] Convert in-project setup, configuration, and installation documentation to clear Arabic.
+- [x] Verify that no platform branding, watermarks, or platform-facing copy is rendered in the AB product interface.
+- [x] Package the redesigned project without platform runtime folders or development artifacts and send the updated archive to the designated Telegram chat.
+- [x] Require a server-validated activation code before AB access, bind successful access to a revocable device session, and reject subsequent requests after revocation or tamper detection.
+- [x] Document that the security response to tampering is server-side access denial and session/device revocation, not manipulation of a person’s network connection.
+- [x] Create a signed, server-issued AB session after successful activation/login or registration and restore the AB account on page reload.
+- [x] Persist an AB device-session record, support user logout and server-side revocation, and reject user requests from revoked sessions.
+- [x] Fix user navigation so switching sections never resets a valid AB session or returns to activation.
+- [x] Add functional user settings for profile, theme, privacy, device session visibility, and logout.
+- [x] Create a separate role-gated Arabic admin area for maintenance, account state, session revocation, reports, remote configuration, notifications, and audit events.
+- [x] Verify that all Firebase, Cloudinary, activation, and session secrets remain server-only and are excluded from the user Android build and project archive.
+- [x] Assess the Android APK build path and produce buildable APK files for AB User and AB Admin.
+- [x] Split deliverables into a standalone AB User application with no administrative screens or server secrets and a separate AB Admin application with its own access boundary.
+- [x] Ensure AB Admin controls remote maintenance, user state, session/device revocation, reports, remote configuration, notification policy, and audit activity without message plaintext or private keys.
+- [x] Send the final AB User and AB Admin APK files to the designated Telegram chat.
+- [x] Persist user theme and privacy settings and expose real device-session data with session revocation controls.
+- [x] Wire AB Admin reports, notifications, expanded remote configuration, and audit history to typed server procedures and live data states.
+- [x] Replace the remote-webview Android wrappers with locally bundled native AB User and AB Admin applications that do not open a hosted interface.
+- [x] Implement native Android access flows and locally rendered user/admin screens backed by server APIs without exposing server secrets.
+- [x] Add only Android permissions that are required for implemented functionality and document the purpose of each permission in Arabic.
+- [x] Configure release signing from the user-provided keystore through secure build settings without committing keystore material or passwords.
+- [x] Build, verify, and send signed AB User and AB Admin APK files to the designated Telegram chat.
+- [x] Connect the user-authorized GitHub account and push the sanitized AB User source export to the repository created manually by the user, without keystores, signing properties, secrets, APK binaries, logs, or build artifacts.
+- [x] Prepare and send sanitized complete source archives for AB User, AB Admin, and the shared AB server to the designated Telegram chat, excluding all secrets, signing material, APK binaries, logs, and build artifacts.
+- [x] Upload the sanitized AB User source only to the user-authorized GitHub repository, excluding server files, secrets, signing material, APK binaries, logs, and build artifacts.
+- [x] Add a GitHub Actions workflow to install Node.js 22 and JDK 17, build and synchronize AB User with Capacitor, build its debug APK, and publish the APK as a run artifact.
+- [x] Fix the AB WebView package so Vite-generated CSS and JavaScript assets use Capacitor-safe relative paths and are copied into the Android app bundle.
+- [x] Replace the planned WebView repository update with the user-approved native Android path; the Vite asset-path fix remains in the full web project but is not published to the native AB User repository.
+- [x] Redesign the native AB User Android interface to match or improve upon the AB website visual system without using WebView, then publish and verify the updated APK build on GitHub.
+- [x] Expand the native AB User interface with comparable profile, privacy, device, and account settings screens while keeping chats and people truthful empty states when no live records exist.
+- [x] Document and test the native screen mapping for activation, access, inbox, people, profile, privacy, devices, settings, and navigation without WebView.
+- [x] Replace the sparse native AB User presentation with a locally bundled WebView that renders the full AB interface offline from APK assets, then verify the updated APK on GitHub.
+- [x] Verify that the bundled AB User WebView and Android resources contain no platform watermark, platform branding, or non-AB product identity.
+- [x] Expand the local AB User WebView settings with real session listing and revocation actions equivalent to the website user flow.
+- [x] Audit AB User Android strings, themes, icons, and bundled web files for any non-AB branding, then cover the check with an automated test.
+- [x] Remove all remaining legacy launcher and adaptive-icon resources from AB User and add an automated audit that fails if any platform-branded splash or launcher asset remains.
+- [x] Define and document client-side encryption boundaries, device-key handling limits, and ciphertext-only server storage for Alpha Byte messages and encrypted attachments.
+- [x] Add Alpha Byte conversations, people search, encrypted message envelopes, image/file attachment metadata, reactions, and selectable expiry rules of one day, one week, or one month.
+- [x] Add user feature requests and a separate Alpha Byte Admin approval workflow that grants only approved account capabilities.
+- [x] Implement an idempotent server cleanup policy that removes expired ciphertext and attachment references, plus a weekly safety cleanup handler for server-side message copies while preserving locally cached ciphertext by design.
+- [x] Rename visible AB User branding to Alpha Byte, improve the launcher icon and compact visual identity, and remove all legacy AB-only product labels where the new name is required.
+- [x] Enforce the selected privacy policy: delete all server-side ciphertext and attachment references after seven days even without a user-selected message timer, while retaining only previously downloaded local copies.
+- [x] Add Android certificate pinning and signed-build integrity checks with server-side session/device revocation for integrity failures; never claim to cut a device's Internet connection.
+- [x] After publishing the server checkpoint, create and verify the weekly Alpha Byte retention schedule.
+- [x] Defer optional GitHub signing secrets because the available GitHub integration lacks secret-management permission; use the independently verified local signed-release artifact instead.
+- [x] Validate the user-provided Alpha Byte keystore locally without printing passwords or key material, then derive the release-certificate SHA-256 fingerprint.
+- [x] Attempt to configure GitHub Actions signing secrets, record the integration-permission failure without exposing values, and build a signed Alpha Byte release APK locally as the secure fallback.
+- [x] Verify the signed release artifact and document only its non-secret signing fingerprint and retrieval status.
+- [x] Deliver the independently verified locally signed Alpha Byte APK without publishing the keystore, signing properties, or passwords.
+- [x] Remove the uploaded keystore and all temporary local signing files after the verified APK has been preserved.
+- [x] Advise the user to rotate the keystore passwords because they appeared in a prior execution transcript, then confirm the final APK contains no private key material.
+- [x] Send an explicit Arabic warning to rotate the keystore and its passwords before any future build because the credentials appeared in an execution transcript.
+- [x] Diagnose and repair people search, the start-conversation control, and message sending so each uses live authorized API responses with visible loading and error states.
+- [x] Keep core messaging available by default and replace ordinary approval-gated features with premium account perks such as a verification badge, exclusive sticker packs, and visual profile customization.
+- [x] Add only the Android permissions required for implemented media, camera, and notification features, with runtime requests and Arabic explanations.
+- [x] Add regression coverage and rebuild the Android user package after the interaction, feature-perk, and permission repairs.
+- [x] Add a visible sending state that disables the composer while ciphertext or an encrypted attachment is being sent.
+- [x] Implement the sticker-pack privilege as a distinct sticker interface and accurately label any basic reaction controls.
+- [x] Implement the approved profile-theme privilege as an account-level visual customization with regression coverage.
+- [x] Enforce the profile-theme grant before applying saved cobalt or violet styles, and cover the ungranted fallback with a regression test.
+- [x] Diagnose and repair sender-device registration/session restoration so encrypted messages and attachments do not fail with DEVICE_ACCESS_REQUIRED.
+- [x] Add free group and channel conversation types with name, optional image, creator/owner, admin, and member roles, without gating core access behind admin approval.
+- [x] Implement encrypted group message delivery and channel publishing controls with role-based authorization and truthful empty/error states.
+- [x] Reuse the compact Alpha Byte A+B launcher mark inside the bundled WebView and verify its visual consistency with the Android icon.
+- [x] Add regression tests and build an updated Android package after the messaging, group/channel, and icon repairs.
+- [x] Isolate every account's local session, device identity, conversation names, ciphertext cache, and conversation keys so no conversation can appear in another account.
+- [x] Repair recipient key retrieval and device registration so a direct-message key is available to both accounts and messages become decryptable after reload.
+- [x] Define an honest recovery path after app-data deletion: preserve server ciphertext but show a clear device-key recovery limitation rather than a broken private chat.
+- [x] Make the group/channel creation action visibly available and verify it opens an actual builder with name, encrypted image, members, and roles.
+- [x] Redesign the mobile conversation layout with a compact header, a stable composer above the system navigation area, message alignment, and no duplicated app logo inside message content.
+- [x] Add automated regression coverage for two-account isolation, cross-account message delivery, cleared-client behavior, visible collective creation, and responsive mobile layout; rebuild the APK.
+- [x] Isolate every account's local session, device identity, conversation names, ciphertext cache, and conversation keys so no conversation can appear in another account.
+- [x] Repair recipient key retrieval and device registration so a direct-message key is available to both accounts and messages become decryptable after reload.
+- [x] Define an honest recovery path after app-data deletion: preserve server ciphertext but show a clear device-key recovery limitation rather than a broken private chat.
+- [x] Redesign the mobile conversation layout with a compact header, a stable composer above the system navigation area, message alignment, and no duplicated app logo inside message content.
+- [x] Add automated regression coverage for two-account isolation, cross-account message delivery, cleared-client behavior, and responsive mobile layout; rebuild the APK.
+- [x] Run an updated WebView/APK verification that the visible "إنشاء مجموعة أو قناة" action opens the builder with title, encrypted image, member selection, and role controls.
+- [x] Add behavior-level regression tests for two-account IndexedDB isolation, direct-message delivery after reload, cleared-client KEY_MATERIAL_UNAVAILABLE handling, and responsive conversation layout.
+- [x] Rebuild the APK after behavior-level verification and audit that its bundled assets match the verified source.
+- [x] Add an app-level regression that asserts openConversation maps wrapped-key decryption loss to KEY_MATERIAL_UNAVAILABLE.
+- [x] Add an automated conversation-layout regression for chat-shell chrome removal, composer presence, and outgoing/incoming alignment.
+- [x] Run a visible-builder member-add flow against a safe local API test fixture, confirm role controls appear without console-injected member state, then rebuild and audit the APK.
+- [x] Refresh an open conversation automatically and safely so incoming ciphertext appears without requiring a reply, logout, or login.
+- [x] Redesign the mobile chat screen with a compact Telegram-inspired dark visual hierarchy, balanced bubbles, readable attachment cards, and a simplified composer while preserving Alpha Byte identity.
+- [x] Add owner/admin collective controls to edit encrypted title/avatar, manage members and roles, remove members, create/revoke a share link, and open a member list.
+- [x] Add authenticated blocking and reporting controls with server-side enforcement and truthful status/error states.
+- [x] Add accessible free messaging improvements: message search, reply context, copying, and clearer sent/received states without fabricating user content.
+- [x] Expand Android media selection support for images and files through the system picker and document only the permissions that are actually needed.
+- [x] Add regression coverage for live conversation refresh, collective administration, share links, block/report enforcement, and new chat layout; rebuild and publish a sanitized Android User source update.
+- [x] Detect encrypted image attachments by MIME metadata, decrypt them locally, and render a safe in-chat preview with an explicit full-size open action; retain a separate download path for non-image files.
+- [x] Add regression coverage for encrypted image preview and full-size opening without exposing plaintext images to the server.
+- [x] Move Alpha Byte chrome below Android system insets and redesign the inbox, chat header, and composer with a modern original mobile visual hierarchy.
+- [x] Show a selected image or file inline before sending, allow removal, and send it only after explicit confirmation from the composer.
+- [x] Implement app-link handling for collective invite URLs so a shared link opens Alpha Byte and submits a controlled join request.
+- [x] Design an encrypted recovery-key flow that lets a user recover conversation-key backups on a new device without exposing plaintext or raw keys to the server.
+- [x] Add account settings for changing the login passphrase, username, local message-lock code, deleting a local conversation copy, and managing limited-time feature trials.
+- [x] Add regression coverage for the revised mobile UI, attachment draft, app links, recovery-key boundaries, and account settings; rebuild and publish the sanitized Android User source.
+- [x] Fix the chat scroll/composer layout so long message histories never push the message input or send control below the visible Android viewport.
+- [x] Replace textual sending notices with compact in-bubble pending, sent, delivered, and read indicators that accurately reflect supported delivery state.
+- [x] Add authorized sender-side message deletion with permanent removal of the selected encrypted server envelope and truthful local UI state.
+- [x] Redesign premium perks around appealing non-core customization and interaction features, including an animated verification badge, improved expressive packs, and an Arabic feature catalog.
+- [x] Define and implement a prioritized, truthful set of thirty available user-facing messenger features without fabricating contacts, messages, reviews, or metrics.
+- [x] Add regression tests, rebuild the Android user APK, audit bundled assets, and publish the sanitized Android User source update.
+- [x] Inspect the supplied project archive without executing its contents, identify its runtime and safe replacement boundary, and reject embedded secrets or build artifacts.
+- [x] Replace the current Alpha Byte external application source with the supplied ready project visual layer after review, modifying only the name, cover image, and external app-facing UI.
+- [x] Test and build the replaced project, then synchronize only sanitized source files and save a recoverable published checkpoint.
+- [x] Preserve the existing server-side Alpha Byte activation-code flow when integrating the supplied UI, without importing the archive .env or embedding a code in the client.
+- [x] Replace the complete Alpha Byte project source with the supplied ready-project archive, excluding hidden configuration, secrets, VCS metadata, caches, and generated build output.
+- [x] Keep the imported project's internal routes and capabilities intact, changing only the visible product name, cover artwork, and unauthenticated exterior screens to Alpha Byte.
+- [x] Restore the necessary managed-project integration surface, verify the replacement builds safely, synchronize sanitized source, and save a new checkpoint.
+- [x] Configure the replacement project with only the user-approved Supabase URL and publishable key from the archive, never importing any private or service key.
+- [x] Fix the deployment asset contract so the client build produces the required dist/public payload before the platform upload step.
+- [ ] Verify the repaired build output, save a checkpoint, and confirm the resulting deployment state.
