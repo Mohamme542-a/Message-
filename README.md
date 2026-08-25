@@ -1,15 +1,29 @@
-# Alpha Byte — Android User
+# Welcome to your Lovable project
 
-هذا المستودع يحتوي على **مصدر تطبيق المستخدم Android فقط**، مع واجهة محلية مضمّنة في الحزمة ولا يفتح صفحة ويب خارجية. لا يحتوي على خادم التطبيق أو رموز تفعيل أو مفاتيح أو ملفات توقيع أو APK مبني.
+This project was built with [Lovable](https://lovable.dev).
 
-## البناء
+## Build with Lovable
 
-تتولى GitHub Actions إنشاء حزمة تصحيح Android عند الدفع إلى الفرع `main`. ويمكن تشغيل المسار نفسه محليًا عبر `npm install` ثم `npm run build` و`npx cap sync android` ومن مجلد `android` شغّل `./gradlew assembleDebug`.
+Open your project in the [Lovable editor](https://lovable.dev) and keep building.
 
-## الخصوصية والأمان
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
+- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
 
-تشفّر الواجهة الرسائل والملفات محليًا قبل إرسالها إلى واجهة Alpha Byte الخادمية. لا تدّعي هذه النسخة بروتوكول E2EE مدققًا بمستوى Signal: فالمفاتيح تستخدم Web Crypto وIndexedDB داخل WebView، ويلزم بروتوكول مدقق وتخزين مفاتيح أصلي قبل الإطلاق الحساس. تحذف السياسة الخادمية مراجع الرسائل والمرفقات المشفرة خلال سبعة أيام كحد أقصى؛ والنسخ التي سبق تنزيلها محليًا لا تعاد مزامنتها بعد ذلك.
+## Development
 
-## الإصدار الموقّع
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
-يبني سير العمل Artifact موقّعًا فقط عندما تُضاف أسرار GitHub المطلوبة للـ keystore. لا تضف أي كلمة مرور أو keystore أو رمز خادم إلى المستودع. يمرّر البناء الموقّع بصمة شهادة الإصدار إلى التطبيق لتفعيل فحص سلامة التوقيع.
+```sh
+git clone <this-repository-url>
+cd <repository-name>
+npm i
+npm run dev
+```
+
+## Built with
+
+- TanStack Start
+- TypeScript
+- React
+- Tailwind CSS

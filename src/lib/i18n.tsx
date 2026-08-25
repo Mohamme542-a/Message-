@@ -1,0 +1,463 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+
+export type Lang = "ar" | "en";
+
+const dictionary = {
+  ar: {
+    "app.tagline": "مراسلة مشفّرة من طرف إلى طرف",
+    "app.name": "Alpha Byte",
+    "splash.loading": "تهيئة المفاتيح الآمنة…",
+
+    "nav.chats": "المحادثات",
+    "nav.contacts": "جهات الاتصال",
+    "nav.calls": "المكالمات",
+    "nav.settings": "الإعدادات",
+
+    "auth.welcome": "أهلاً بك في Alpha Byte",
+    "auth.subtitle": "بلا رقم هاتف. بلا بريد إلكتروني. هويتك هي مفاتيحك.",
+    "auth.create": "إنشاء حساب",
+    "auth.signin": "تسجيل الدخول",
+    "auth.username": "اسم المستخدم",
+    "auth.username.hint": "أحرف إنجليزية صغيرة وأرقام و _ فقط",
+    "auth.passphrase": "عبارة المرور",
+    "auth.passphrase.hint": "12 حرفاً على الأقل. لا يمكن استرجاعها.",
+    "auth.confirm": "تأكيد عبارة المرور",
+    "auth.display": "الاسم المعروض",
+    "auth.creating": "جارٍ توليد المفاتيح…",
+    "auth.have": "لديك حساب؟",
+    "auth.no": "ليس لديك حساب؟",
+    "auth.warning":
+      "Alpha Byte لا يحتفظ بنسخة من مفاتيحك. إذا فقدت عبارة المرور ورمز الاسترداد معاً فلن يستطيع أحد — بما فيهم نحن — استعادة حسابك أو فك تشفير رسائلك.",
+    "auth.registration.closed": "التسجيل موقوف حالياً من قبل إدارة التطبيق.",
+
+    "recovery.title": "رمز الاسترداد",
+    "recovery.desc":
+      "احفظ هذا الرمز في مكان آمن خارج الجهاز. هو وسيلتك الوحيدة إلى جانب عبارة المرور.",
+    "recovery.copy": "نسخ الرمز",
+    "recovery.copied": "تم النسخ",
+    "recovery.ack": "حفظت الرمز في مكان آمن",
+    "recovery.continue": "متابعة",
+
+    "lock.title": "Alpha Byte مقفل",
+    "lock.pin": "أدخل رمز PIN",
+    "lock.passphrase": "أدخل عبارة المرور",
+    "lock.unlock": "فتح",
+    "lock.usePassphrase": "استخدام عبارة المرور",
+    "lock.wrong": "بيانات غير صحيحة",
+    "lock.biometric": "بصمة الإصبع / التعرف على الوجه",
+    "lock.biometric.note": "يتطلب بناء التطبيق عبر Capacitor على جهاز يدعمها.",
+
+    "chats.title": "المحادثات",
+    "chats.empty": "لا توجد محادثات بعد",
+    "chats.empty.hint": "ابحث عن اسم مستخدم وأرسل طلب محادثة للبدء.",
+    "chats.search": "بحث في المحادثات",
+    "chat.placeholder": "اكتب رسالة مشفّرة…",
+    "chat.encrypted": "مشفّرة من طرف إلى طرف",
+    "chat.typing": "يكتب…",
+    "chat.online": "متصل",
+    "chat.offline": "غير متصل",
+    "chat.decryptFailed": "تعذّر فك التشفير على هذا الجهاز",
+    "chat.deleted": "تم حذف الرسالة",
+    "chat.edited": "معدّلة",
+    "chat.reply": "رد",
+    "chat.edit": "تعديل",
+    "chat.delete": "حذف",
+    "chat.copy": "نسخ",
+    "chat.pin": "تثبيت",
+    "chat.forward": "إعادة توجيه",
+    "chat.info": "معلومات الرسالة",
+    "chat.react": "تفاعل",
+    "chat.disappearing": "الرسائل المؤقتة",
+    "chat.security": "مركز الأمان",
+    "chat.offlineQueued": "في صندوق الصادر — سيتم الإرسال عند عودة الاتصال",
+
+    "disappearing.off": "معطّلة",
+    "disappearing.10s": "10 ثوانٍ",
+    "disappearing.1m": "دقيقة",
+    "disappearing.1h": "ساعة",
+    "disappearing.1d": "يوم",
+    "disappearing.1w": "أسبوع",
+    "disappearing.note":
+      "حذف الرسالة من AB لا يضمن عدم احتفاظ الطرف الآخر بنسخة (لقطة شاشة، تصوير، جهاز آخر).",
+
+    "contacts.title": "جهات الاتصال",
+    "contacts.search": "ابحث باسم المستخدم",
+    "contacts.searchAction": "بحث",
+    "contacts.requests": "الطلبات",
+    "contacts.accept": "قبول",
+    "contacts.reject": "رفض",
+    "contacts.send": "إرسال طلب محادثة",
+    "contacts.sent": "تم إرسال الطلب",
+    "contacts.pending": "بانتظار القبول",
+    "contacts.block": "حظر",
+    "contacts.unblock": "إلغاء الحظر",
+    "contacts.report": "إبلاغ",
+    "contacts.none": "لا يوجد مستخدم بهذا الاسم",
+    "contacts.noUpload": "Alpha Byte لا يرفع دفتر هاتفك أبداً. البحث بالاسم فقط.",
+    "contacts.openChat": "فتح المحادثة",
+
+    "calls.title": "المكالمات",
+    "calls.empty": "لا يوجد سجل مكالمات",
+    "calls.notice":
+      "المكالمات المشفّرة (صوت/فيديو/مجموعات/مشاركة الشاشة) مصمّمة على WebRTC مع إشارات منفصلة عن محتوى المكالمة، وتحتاج خادم إشارات + TURN وبناءً عبر Capacitor. لم يتم تفعيلها بعد ولن نعرض واجهة وهمية.",
+
+    "settings.title": "الإعدادات",
+    "settings.profile": "الملف الشخصي",
+    "settings.privacy": "الخصوصية",
+    "settings.security": "الأمان والقفل",
+    "settings.devices": "الأجهزة",
+    "settings.appearance": "المظهر واللغة",
+    "settings.data": "البيانات والحساب",
+    "settings.signout": "تسجيل الخروج",
+    "settings.userId": "معرّف المستخدم",
+    "settings.displayName": "الاسم المعروض",
+    "settings.bio": "نبذة",
+    "settings.avatar": "رابط الصورة",
+    "settings.save": "حفظ",
+    "settings.saved": "تم الحفظ",
+
+    "privacy.readReceipts": "إشعارات القراءة",
+    "privacy.typing": "مؤشر الكتابة",
+    "privacy.lastSeen": "آخر ظهور",
+    "privacy.online": "الحالة على الإنترنت",
+    "privacy.notifications": "إخفاء محتوى الإشعارات",
+    "privacy.notifications.hint": "يظهر «🔒 رسالة جديدة» بدل النص",
+
+    "security.pin": "قفل التطبيق بـPIN",
+    "security.pin.set": "تعيين PIN",
+    "security.pin.change": "تغيير PIN",
+    "security.pin.remove": "إزالة PIN",
+    "security.autolock": "القفل التلقائي",
+    "security.autolock.hint": "بعد كم دقيقة من الخمول",
+    "security.screenshot": "منع لقطات الشاشة",
+    "security.screenshot.hint": "يتطلب Capacitor على Android/iOS — غير مفعّل في المتصفح.",
+    "security.emergency": "وضع الطوارئ",
+    "security.emergency.desc":
+      "قفل فوري + إتلاف المفاتيح المحلية + إبطال جلسات كل الأجهزة. لا يمكن التراجع.",
+    "security.emergency.action": "تفعيل وضع الطوارئ",
+    "security.emergency.confirm": "أنا أفهم أن بياناتي ستصبح غير قابلة للاستعادة",
+
+    "devices.title": "الأجهزة",
+    "devices.current": "الجهاز الحالي",
+    "devices.revoke": "إبطال الجهاز",
+    "devices.revokeAll": "تسجيل الخروج من كل الأجهزة",
+    "devices.revoked": "مُبطَل",
+    "devices.lastActive": "آخر نشاط",
+    "devices.note": "لكل جهاز مفتاحه الخاص. الخادم يرى المفاتيح العامة فقط.",
+
+    "sc.title": "مركز الأمان",
+    "sc.e2ee": "التشفير من طرف إلى طرف",
+    "sc.active": "مُفعّل",
+    "sc.verified": "هوية جهة الاتصال موثّقة",
+    "sc.unverified": "لم يتم التحقق بعد",
+    "sc.session": "جلسة آمنة نشطة",
+    "sc.keys": "المفاتيح محدّثة",
+    "sc.devices": "لا توجد أجهزة مجهولة",
+    "sc.lastCheck": "آخر تحقق أمني",
+    "sc.verify": "التحقق من جهة الاتصال",
+    "sc.safetyNumber": "رقم الأمان",
+    "sc.qr": "رمز QR للتحقق",
+    "sc.markVerified": "تأكيد التطابق",
+    "sc.keyChanged": "تغيّرت مفاتيح جهة الاتصال! تحقق من هويتها قبل المتابعة.",
+    "sc.compare": "قارن هذا الرقم مع جهاز الطرف الآخر عبر قناة موثوقة.",
+
+    "admin.title": "لوحة تحكم Alpha Byte",
+    "admin.login": "دخول الإدارة",
+    "admin.denied": "هذا الحساب لا يملك صلاحية إدارية.",
+    "admin.dashboard": "الإحصائيات",
+    "admin.users": "المستخدمون",
+    "admin.reports": "البلاغات",
+    "admin.maintenance": "الصيانة",
+    "admin.config": "الإعدادات العامة",
+    "admin.audit": "سجل التدقيق",
+    "admin.totalUsers": "إجمالي المستخدمين",
+    "admin.activeUsers": "نشطون (24 ساعة)",
+    "admin.newUsers": "جدد (7 أيام)",
+    "admin.openReports": "بلاغات مفتوحة",
+    "admin.devices": "الأجهزة المسجّلة",
+    "admin.messages": "الرسائل المشفّرة المخزّنة",
+    "admin.noContent": "لوحة التحكم لا تعرض ولا تستطيع عرض محتوى الرسائل أو المفاتيح.",
+    "admin.suspend": "تجميد",
+    "admin.unsuspend": "إلغاء التجميد",
+    "admin.ban": "حظر",
+    "admin.unban": "إلغاء الحظر",
+    "admin.disable": "تعطيل الحساب",
+    "admin.forceLogout": "إبطال كل الجلسات",
+    "admin.maintenanceMode": "وضع الصيانة",
+    "admin.maintenanceMessage": "رسالة الصيانة",
+    "admin.minVersion": "أدنى إصدار مدعوم",
+    "admin.forceUpdate": "فرض التحديث",
+    "admin.registration": "السماح بالتسجيل",
+    "admin.newUserLimit": "حد المستخدمين الجدد (0 = بلا حد)",
+    "admin.save": "حفظ الإعدادات",
+    "admin.searchUser": "ابحث بالمعرّف أو اسم المستخدم",
+
+    "maintenance.title": "Alpha Byte متوقف مؤقتاً للصيانة",
+    "maintenance.retry": "إعادة المحاولة",
+    "update.title": "تحديث مطلوب",
+    "update.desc": "إصدارك من AB لم يعد مدعوماً. حدّث التطبيق للمتابعة.",
+
+    "common.cancel": "إلغاء",
+    "common.confirm": "تأكيد",
+    "common.back": "رجوع",
+    "common.close": "إغلاق",
+    "common.loading": "جارٍ التحميل…",
+    "common.error": "حدث خطأ",
+    "common.on": "مفعّل",
+    "common.off": "معطّل",
+    "common.offline": "لا يوجد اتصال",
+    "common.delete": "حذف",
+    "common.you": "أنت",
+  },
+  en: {
+    "app.tagline": "End-to-end encrypted messaging",
+    "app.name": "Alpha Byte",
+    "splash.loading": "Preparing secure keys…",
+
+    "nav.chats": "Chats",
+    "nav.contacts": "Contacts",
+    "nav.calls": "Calls",
+    "nav.settings": "Settings",
+
+    "auth.welcome": "Welcome to Alpha Byte",
+    "auth.subtitle": "No phone number. No email. Your identity is your keys.",
+    "auth.create": "Create account",
+    "auth.signin": "Sign in",
+    "auth.username": "Username",
+    "auth.username.hint": "Lowercase letters, numbers and _ only",
+    "auth.passphrase": "Passphrase",
+    "auth.passphrase.hint": "At least 12 characters. It cannot be recovered.",
+    "auth.confirm": "Confirm passphrase",
+    "auth.display": "Display name",
+    "auth.creating": "Generating keys…",
+    "auth.have": "Already have an account?",
+    "auth.no": "No account yet?",
+    "auth.warning":
+      "Alpha Byte keeps no copy of your keys. If you lose both your passphrase and your recovery code, nobody — including us — can restore your account or decrypt your messages.",
+    "auth.registration.closed": "Registration is currently disabled by the administrators.",
+
+    "recovery.title": "Recovery code",
+    "recovery.desc": "Store this off-device. It is your only backup besides the passphrase.",
+    "recovery.copy": "Copy code",
+    "recovery.copied": "Copied",
+    "recovery.ack": "I stored the code safely",
+    "recovery.continue": "Continue",
+
+    "lock.title": "AB is locked",
+    "lock.pin": "Enter PIN",
+    "lock.passphrase": "Enter passphrase",
+    "lock.unlock": "Unlock",
+    "lock.usePassphrase": "Use passphrase",
+    "lock.wrong": "Incorrect credentials",
+    "lock.biometric": "Fingerprint / Face unlock",
+    "lock.biometric.note": "Requires a Capacitor build on a supported device.",
+
+    "chats.title": "Chats",
+    "chats.empty": "No conversations yet",
+    "chats.empty.hint": "Search for a username and send a chat request to begin.",
+    "chats.search": "Search chats",
+    "chat.placeholder": "Write an encrypted message…",
+    "chat.encrypted": "End-to-end encrypted",
+    "chat.typing": "typing…",
+    "chat.online": "Online",
+    "chat.offline": "Offline",
+    "chat.decryptFailed": "Cannot decrypt on this device",
+    "chat.deleted": "Message deleted",
+    "chat.edited": "edited",
+    "chat.reply": "Reply",
+    "chat.edit": "Edit",
+    "chat.delete": "Delete",
+    "chat.copy": "Copy",
+    "chat.pin": "Pin",
+    "chat.forward": "Forward",
+    "chat.info": "Message info",
+    "chat.react": "React",
+    "chat.disappearing": "Disappearing messages",
+    "chat.security": "Security Center",
+    "chat.offlineQueued": "Queued in outbox — will send when back online",
+
+    "disappearing.off": "Off",
+    "disappearing.10s": "10 seconds",
+    "disappearing.1m": "1 minute",
+    "disappearing.1h": "1 hour",
+    "disappearing.1d": "1 day",
+    "disappearing.1w": "1 week",
+    "disappearing.note":
+      "Deleting a message in AB does not guarantee the other side kept no copy (screenshot, camera, another device).",
+
+    "contacts.title": "Contacts",
+    "contacts.search": "Search by username",
+    "contacts.searchAction": "Search",
+    "contacts.requests": "Requests",
+    "contacts.accept": "Accept",
+    "contacts.reject": "Reject",
+    "contacts.send": "Send chat request",
+    "contacts.sent": "Request sent",
+    "contacts.pending": "Awaiting approval",
+    "contacts.block": "Block",
+    "contacts.unblock": "Unblock",
+    "contacts.report": "Report",
+    "contacts.none": "No user with that username",
+    "contacts.noUpload": "AB never uploads your phone book. Username search only.",
+    "contacts.openChat": "Open chat",
+
+    "calls.title": "Calls",
+    "calls.empty": "No call history",
+    "calls.notice":
+      "Encrypted voice/video/group calls and screen sharing are designed on WebRTC with signaling separated from call content. They need a signaling server + TURN and a Capacitor build. Not enabled yet — no fake UI is shown.",
+
+    "settings.title": "Settings",
+    "settings.profile": "Profile",
+    "settings.privacy": "Privacy",
+    "settings.security": "Security & lock",
+    "settings.devices": "Devices",
+    "settings.appearance": "Appearance & language",
+    "settings.data": "Data & account",
+    "settings.signout": "Sign out",
+    "settings.userId": "User ID",
+    "settings.displayName": "Display name",
+    "settings.bio": "Bio",
+    "settings.avatar": "Avatar URL",
+    "settings.save": "Save",
+    "settings.saved": "Saved",
+
+    "privacy.readReceipts": "Read receipts",
+    "privacy.typing": "Typing indicator",
+    "privacy.lastSeen": "Last seen",
+    "privacy.online": "Online status",
+    "privacy.notifications": "Hide notification content",
+    "privacy.notifications.hint": "Shows “🔒 New message” instead of the text",
+
+    "security.pin": "App PIN lock",
+    "security.pin.set": "Set PIN",
+    "security.pin.change": "Change PIN",
+    "security.pin.remove": "Remove PIN",
+    "security.autolock": "Auto-lock",
+    "security.autolock.hint": "Idle minutes before locking",
+    "security.screenshot": "Block screenshots",
+    "security.screenshot.hint": "Requires Capacitor on Android/iOS — inactive in the browser.",
+    "security.emergency": "Emergency mode",
+    "security.emergency.desc":
+      "Instant lock + destroy local keys + revoke every device session. Irreversible.",
+    "security.emergency.action": "Activate emergency mode",
+    "security.emergency.confirm": "I understand my data becomes unrecoverable",
+
+    "devices.title": "Devices",
+    "devices.current": "Current device",
+    "devices.revoke": "Revoke device",
+    "devices.revokeAll": "Log out of all devices",
+    "devices.revoked": "Revoked",
+    "devices.lastActive": "Last active",
+    "devices.note": "Each device holds its own keys. The server only ever sees public keys.",
+
+    "sc.title": "Security Center",
+    "sc.e2ee": "End-to-End Encryption",
+    "sc.active": "Active",
+    "sc.verified": "Contact identity verified",
+    "sc.unverified": "Not verified yet",
+    "sc.session": "Secure session active",
+    "sc.keys": "Keys up to date",
+    "sc.devices": "No unknown devices",
+    "sc.lastCheck": "Last security verification",
+    "sc.verify": "Verify contact",
+    "sc.safetyNumber": "Safety number",
+    "sc.qr": "QR verification code",
+    "sc.markVerified": "Confirm match",
+    "sc.keyChanged": "This contact's keys changed! Verify their identity before continuing.",
+    "sc.compare": "Compare this number with your contact's device over a trusted channel.",
+
+    "admin.title": "AB Admin Console",
+    "admin.login": "Admin sign in",
+    "admin.denied": "This account has no administrative role.",
+    "admin.dashboard": "Dashboard",
+    "admin.users": "Users",
+    "admin.reports": "Reports",
+    "admin.maintenance": "Maintenance",
+    "admin.config": "App configuration",
+    "admin.audit": "Audit log",
+    "admin.totalUsers": "Total users",
+    "admin.activeUsers": "Active (24h)",
+    "admin.newUsers": "New (7d)",
+    "admin.openReports": "Open reports",
+    "admin.devices": "Registered devices",
+    "admin.messages": "Stored ciphertext messages",
+    "admin.noContent": "This console does not and cannot show message content or keys.",
+    "admin.suspend": "Suspend",
+    "admin.unsuspend": "Unsuspend",
+    "admin.ban": "Ban",
+    "admin.unban": "Unban",
+    "admin.disable": "Disable account",
+    "admin.forceLogout": "Revoke all sessions",
+    "admin.maintenanceMode": "Maintenance mode",
+    "admin.maintenanceMessage": "Maintenance message",
+    "admin.minVersion": "Minimum supported version",
+    "admin.forceUpdate": "Force update",
+    "admin.registration": "Registration enabled",
+    "admin.newUserLimit": "New user limit (0 = unlimited)",
+    "admin.save": "Save configuration",
+    "admin.searchUser": "Search by user ID or username",
+
+    "maintenance.title": "AB is temporarily unavailable for maintenance.",
+    "maintenance.retry": "Retry",
+    "update.title": "Update required",
+    "update.desc": "Your build of AB is no longer supported. Please update to continue.",
+
+    "common.cancel": "Cancel",
+    "common.confirm": "Confirm",
+    "common.back": "Back",
+    "common.close": "Close",
+    "common.loading": "Loading…",
+    "common.error": "Something went wrong",
+    "common.on": "On",
+    "common.off": "Off",
+    "common.offline": "Offline",
+    "common.delete": "Delete",
+    "common.you": "You",
+  },
+} as const;
+
+export type TranslationKey = keyof (typeof dictionary)["ar"];
+
+interface I18nValue {
+  lang: Lang;
+  dir: "rtl" | "ltr";
+  setLang: (lang: Lang) => void;
+  t: (key: TranslationKey) => string;
+}
+
+const I18nContext = createContext<I18nValue | null>(null);
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>("ar");
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("ab.lang");
+    if (stored === "en" || stored === "ar") setLangState(stored);
+  }, []);
+
+  useEffect(() => {
+    const dir = lang === "ar" ? "rtl" : "ltr";
+    document.documentElement.lang = lang;
+    document.documentElement.dir = dir;
+  }, [lang]);
+
+  const setLang = useCallback((next: Lang) => {
+    setLangState(next);
+    window.localStorage.setItem("ab.lang", next);
+  }, []);
+
+  const t = useCallback((key: TranslationKey) => dictionary[lang][key] ?? key, [lang]);
+
+  const value = useMemo<I18nValue>(
+    () => ({ lang, dir: lang === "ar" ? "rtl" : "ltr", setLang, t }),
+    [lang, setLang, t],
+  );
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+export function useI18n(): I18nValue {
+  const ctx = useContext(I18nContext);
+  if (!ctx) throw new Error("useI18n must be used inside I18nProvider");
+  return ctx;
+}
