@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ChevronLeft,
+  Copy,
+  KeyRound,
   Languages,
   LogOut,
   Monitor,
@@ -24,7 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMyProfile, hasRole } from "@/lib/ab-api";
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
-import { disablePin, enablePin } from "@/lib/vault";
+import { createRecoveryBackup, disablePin, enablePin } from "@/lib/vault";
+import { generateRecoveryCode } from "@/lib/crypto";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   ssr: false,
@@ -53,6 +56,7 @@ function SettingsPage() {
   const [bio, setBio] = useState("");
   const [pin, setPin] = useState("");
   const [wipeAck, setWipeAck] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", userId],
@@ -111,6 +115,21 @@ function SettingsPage() {
     disablePin();
     refreshVaultFlags();
     toast.success(t("settings.saved"));
+  }
+
+  async function createMessageRecovery() {
+    if (!vault || !userId) return;
+    const code = generateRecoveryCode();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ recovery_backup: await createRecoveryBackup(code, vault) })
+      .eq("id", userId);
+    if (error) {
+      toast.error("تعذر حفظ نسخة الاستعادة المشفرة.");
+      return;
+    }
+    setRecoveryCode(code);
+    toast.success("تم إنشاء مفتاح الاستعادة.");
   }
 
   async function handleSignOut() {
@@ -222,6 +241,22 @@ function SettingsPage() {
             checked={settings.blockScreenshots}
             onCheckedChange={(v) => updateSettings({ blockScreenshots: v })}
           />
+        </div>
+        <div className="mt-4 rounded-2xl border border-border p-4">
+          <div className="flex items-start gap-2">
+            <KeyRound className="mt-0.5 h-4 w-4 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">مفتاح استعادة الرسائل</p>
+              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">أنشئ مفتاحًا تحفظه خارج الهاتف. النسخة المحفوظة على الخادم مشفرة به ولا يمكن فتحها من دونه.</p>
+            </div>
+          </div>
+          {recoveryCode ? (
+            <div className="mt-3 select-all rounded-xl bg-muted p-3 text-center font-mono text-sm tracking-wider">{recoveryCode}</div>
+          ) : null}
+          <div className="mt-3 flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => void createMessageRecovery()}>إنشاء مفتاح</Button>
+            {recoveryCode ? <Button variant="outline" size="icon" onClick={() => { void navigator.clipboard.writeText(recoveryCode); toast.success("تم النسخ"); }} aria-label="نسخ مفتاح الاستعادة"><Copy className="h-4 w-4" /></Button> : null}
+          </div>
         </div>
         <Link
           to="/devices"

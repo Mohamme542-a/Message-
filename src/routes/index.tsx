@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
 import { validateActivation } from "@/lib/activation";
 
@@ -10,7 +9,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Splash() {
-  const { t } = useI18n();
   const navigate = useNavigate();
   const { ready, session, hasVault, vault } = useSession();
 
@@ -31,18 +29,16 @@ function Splash() {
   }, [ready, session, hasVault, vault, navigate]);
 
   return (
-    <div className="app-shell aurora flex flex-col items-center justify-center gap-6 bg-background">
+    <div className="splash-shell app-shell flex flex-col items-center justify-center gap-7">
       <div className="relative">
-        <span className="pulse-ring absolute inset-0 rounded-3xl brand-bg" />
-        <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl brand-bg shadow-glow" aria-label="Alpha Byte">
+        <div className="ab-emblem ab-emblem-large relative" aria-label="Alpha Byte">
           <span className="alpha-byte-cover">A<span>B</span></span>
         </div>
       </div>
       <div className="text-center">
-        <h1 className="brand-text text-4xl font-extrabold tracking-tight">Alpha Byte</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t("app.tagline")}</p>
+        <h1 className="text-4xl font-black tracking-tight text-white">Alpha Byte</h1>
       </div>
-      <p className="animate-pulse text-xs text-muted-foreground">{t("splash.loading")}</p>
+      <span className="splash-indicator" aria-label="جارٍ الفتح" />
     </div>
   );
 }

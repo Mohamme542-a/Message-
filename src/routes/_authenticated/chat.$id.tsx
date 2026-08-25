@@ -7,6 +7,7 @@ import {
   Lock,
   Mic,
   Paperclip,
+  Pause,
   Play,
   Send,
   ShieldCheck,
@@ -77,10 +78,20 @@ function ttlLabel(seconds: number, t: ReturnType<typeof useI18n>["t"]) {
 function AttachmentPreview({ descriptor }: { descriptor: AttachmentDescriptor }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [autoplay, setAutoplay] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => () => {
     if (url) URL.revokeObjectURL(url);
   }, [url]);
+
+  useEffect(() => {
+    if (descriptor.kind !== "audio" || !url || !autoplay) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    void audio.play().then(() => setPlaying(true)).catch(() => setAutoplay(false));
+  }, [autoplay, descriptor.kind, url]);
 
   async function openAttachment() {
     setLoading(true);
@@ -91,6 +102,7 @@ function AttachmentPreview({ descriptor }: { descriptor: AttachmentDescriptor })
         if (previous) URL.revokeObjectURL(previous);
         return nextUrl;
       });
+      if (descriptor.kind === "audio") setAutoplay(true);
     } catch {
       toast.error("تعذر فتح المرفق المشفّر.");
     } finally {
@@ -102,18 +114,39 @@ function AttachmentPreview({ descriptor }: { descriptor: AttachmentDescriptor })
     return <img src={url} alt={descriptor.name} className="max-h-72 w-full rounded-xl object-cover" />;
   }
   if (descriptor.kind === "audio" && url) {
-    return <audio className="w-full" controls src={url} />;
+    return (
+      <div className="flex min-w-52 items-center gap-2">
+        <audio ref={audioRef} src={url} onEnded={() => setPlaying(false)} onPause={() => setPlaying(false)} onPlay={() => setPlaying(true)} />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-2 rounded-full"
+          onClick={() => {
+            const audio = audioRef.current;
+            if (!audio) return;
+            if (audio.paused) void audio.play();
+            else audio.pause();
+          }}
+        >
+          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          {playing ? "إيقاف" : "تشغيل"}
+        </Button>
+        <span className="min-w-0 flex-1 truncate text-xs">{descriptor.name}</span>
+        <a href={url} download={descriptor.name} className="rounded-full p-1" aria-label="تنزيل المرفق"><Download className="h-4 w-4" /></a>
+      </div>
+    );
   }
 
   return (
     <div className="flex min-w-44 items-center gap-2">
       {descriptor.kind === "image" ? <ImageIcon className="h-5 w-5" /> : descriptor.kind === "audio" ? <Play className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
       <span className="min-w-0 flex-1 truncate text-xs">{descriptor.name}</span>
-      {url ? (
+          {url ? (
         <a href={url} download={descriptor.name} className="rounded-full p-1" aria-label="تنزيل المرفق"><Download className="h-4 w-4" /></a>
-      ) : (
-        <button type="button" onClick={() => void openAttachment()} disabled={loading} className="rounded-full p-1" aria-label="فتح المرفق">
-          {loading ? <span className="text-xs">…</span> : <Download className="h-4 w-4" />}
+          ) : (
+        <button type="button" onClick={() => void openAttachment()} disabled={loading} className="rounded-full p-1" aria-label={descriptor.kind === "audio" ? "تشغيل الرسالة الصوتية" : "فتح المرفق"}>
+          {loading ? <span className="text-xs">…</span> : descriptor.kind === "audio" ? <Play className="h-4 w-4" /> : <Download className="h-4 w-4" />}
         </button>
       )}
     </div>
@@ -280,17 +313,17 @@ function ChatPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col">
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border glass px-4 py-3">
+    <div className="chat-shell mx-auto flex h-[100dvh] min-h-0 max-w-lg flex-col overflow-hidden">
+      <header className="safe-top z-30 flex shrink-0 items-center gap-3 border-b border-border glass px-4 py-3">
         <Link to="/chats" className="rounded-full p-1.5 text-muted-foreground press"><ArrowRight className="h-5 w-5" /></Link>
         <span className="flex h-9 w-9 items-center justify-center rounded-2xl brand-bg text-xs font-bold text-primary-foreground">{(peer?.display_name || peer?.username || "?").slice(0, 2).toUpperCase()}</span>
         <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{peer?.display_name || peer?.username || "—"}</p><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Lock className="h-3 w-3" />{t("chat.encrypted")}</p></div>
         <Link to="/security/$id" params={{ id }} className="rounded-full p-1.5 text-primary press" aria-label={t("chat.security")}><ShieldCheck className="h-5 w-5" /></Link>
       </header>
 
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground"><Timer className="h-3.5 w-3.5" /><span className="whitespace-nowrap">{t("chat.disappearing")}</span><Select value={String(ttl)} onValueChange={(value) => void updateTtl(Number(value))}><SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger><SelectContent>{TTL_OPTIONS.map((option) => <SelectItem key={option} value={String(option)}>{ttlLabel(option, t)}</SelectItem>)}</SelectContent></Select></div>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground"><Timer className="h-3.5 w-3.5" /><span className="whitespace-nowrap">{t("chat.disappearing")}</span><Select value={String(ttl)} onValueChange={(value) => void updateTtl(Number(value))}><SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger><SelectContent>{TTL_OPTIONS.map((option) => <SelectItem key={option} value={String(option)}>{ttlLabel(option, t)}</SelectItem>)}</SelectContent></Select></div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4">
         {!key && <p className="rounded-2xl border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">{t("chat.decryptFailed")}</p>}
         {visible.map((row) => {
           const mine = row.sender_id === userId;
@@ -299,7 +332,7 @@ function ChatPage() {
             const parsed: unknown = JSON.parse(plain[row.id] ?? "");
             if (isAttachmentDescriptor(parsed)) descriptor = parsed;
           } catch { /* A text message is not JSON. */ }
-          return <div key={row.id} className={cn("flex", mine ? "justify-start" : "justify-end")}><div className={cn("group max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm", mine ? "brand-bg text-primary-foreground" : "border border-border glass")}>
+          return <div key={row.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div className={cn("group max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm", mine ? "brand-bg text-primary-foreground" : "border border-border glass")}>
             {descriptor ? <AttachmentPreview descriptor={descriptor} /> : <p className="whitespace-pre-wrap break-words">{plain[row.id] ?? "…"}</p>}
             <div className="mt-1 flex items-center gap-2 text-[10px] opacity-70"><span>{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{row.expires_at && <Timer className="h-3 w-3" />}{mine && <button type="button" onClick={() => void removeMessage(row.id)} aria-label={t("chat.delete")}><Trash2 className="h-3 w-3" /></button>}</div>
           </div></div>;
@@ -308,7 +341,7 @@ function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={send} className="sticky bottom-0 border-t border-border glass px-4 py-3 safe-bottom">
+      <form onSubmit={send} className="shrink-0 border-t border-border glass px-4 py-3 safe-bottom">
         {pendingFile && <div className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 text-xs"><FileText className="h-4 w-4 text-primary" /><span className="min-w-0 flex-1 truncate">{pendingFile.name}</span><button type="button" onClick={() => setPendingFile(null)} aria-label="إزالة المرفق"><X className="h-4 w-4" /></button></div>}
         {recording && <div className="mb-2 flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />جارٍ تسجيل الصوت {recordingSeconds}s</div>}
         <div className="flex gap-2">

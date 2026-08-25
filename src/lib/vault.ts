@@ -83,6 +83,18 @@ export async function createVault(passphrase: string, contents: VaultContents): 
   write(VAULT_KEY, await seal(passphrase, contents));
 }
 
+/** نسخة مشفرة من الخزنة تُخزّن على الخادم؛ لا تحتوي على مفتاح خاص بصورته الخام. */
+export async function createRecoveryBackup(recoveryCode: string, contents: VaultContents): Promise<string> {
+  return JSON.stringify(await seal(recoveryCode, contents));
+}
+
+/** يستعيد محتوى الخزنة فقط بعد تقديم مفتاح الاستعادة الصحيح محليًا. */
+export async function restoreVaultFromRecovery(recoveryCode: string, backup: string): Promise<VaultContents> {
+  const wrapped = JSON.parse(backup) as WrappedVault;
+  if (!wrapped?.salt || !wrapped?.payload) throw new Error("INVALID_RECOVERY_BACKUP");
+  return open(recoveryCode, wrapped);
+}
+
 export async function unlockWithPassphrase(passphrase: string): Promise<VaultContents> {
   const wrapped = read<WrappedVault>(VAULT_KEY);
   if (!wrapped) throw new Error("NO_VAULT");

@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
 import { USERNAME_RE, getConfig, usernameToEmail } from "@/lib/ab-api";
 import { generateIdentityKeyPair, generateRecoveryCode } from "@/lib/crypto";
-import { createVault, vaultExists, type VaultContents } from "@/lib/vault";
+import { createRecoveryBackup, createVault, restoreVaultFromRecovery, vaultExists, type VaultContents } from "@/lib/vault";
 import { validateActivation } from "@/lib/activation";
 import { ActivationGate } from "@/components/ActivationGate";
 
@@ -46,6 +46,7 @@ function AuthPage() {
   const [ack, setAck] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(true);
   const [activationReady, setActivationReady] = useState(false);
+  const [recoveryInput, setRecoveryInput] = useState("");
 
   useEffect(() => {
     getConfig<boolean>("registration_open", true).then(setRegistrationOpen).catch(() => {});
@@ -91,20 +92,6 @@ function AuthPage() {
         const keys = await generateIdentityKeyPair();
         const code = generateRecoveryCode();
         const deviceId = crypto.randomUUID();
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: user.id,
-          username: uname,
-          display_name: displayName.trim() || uname,
-          identity_public_key: keys.publicKey,
-        });
-        if (profileError) throw profileError;
-        await supabase.from("devices").insert({
-          id: deviceId,
-          user_id: user.id,
-          device_name: navigator.userAgent.slice(0, 60),
-          platform: "web",
-          public_key: keys.publicKey,
-        });
         const contents: VaultContents = {
           userId: user.id,
           username: uname,
@@ -115,6 +102,21 @@ function AuthPage() {
           recoveryCodeHint: code.slice(0, 4),
           createdAt: new Date().toISOString(),
         };
+        const { error: profileError } = await supabase.from("profiles").insert({
+          id: user.id,
+          username: uname,
+          display_name: displayName.trim() || uname,
+          identity_public_key: keys.publicKey,
+          recovery_backup: await createRecoveryBackup(code, contents),
+        });
+        if (profileError) throw profileError;
+        await supabase.from("devices").insert({
+          id: deviceId,
+          user_id: user.id,
+          device_name: navigator.userAgent.slice(0, 60),
+          platform: "web",
+          public_key: keys.publicKey,
+        });
         await createVault(passphrase, contents);
         refreshVaultFlags();
         setVault(contents);
@@ -131,29 +133,32 @@ function AuthPage() {
           navigate({ to: "/lock", replace: true });
           return;
         }
-        // جهاز جديد: نولّد مفاتيح جديدة لهذا الجهاز — الرسائل القديمة تبقى غير قابلة للفك.
-        const keys = await generateIdentityKeyPair();
-        const deviceId = crypto.randomUUID();
-        await supabase
+        if (!recoveryInput.trim()) {
+          throw new Error("أدخل مفتاح استعادة الرسائل المحفوظ لديك لفتح محادثاتك على هذا الجهاز.");
+        }
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .update({ identity_public_key: keys.publicKey })
-          .eq("id", user.id);
+          .select("recovery_backup")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (profileError || !profile?.recovery_backup) {
+          throw new Error("لا توجد نسخة استعادة لهذا الحساب بعد. افتح الإعدادات من جهازك السابق وأنشئ مفتاح استعادة أولًا.");
+        }
+        const restored = await restoreVaultFromRecovery(recoveryInput.trim(), profile.recovery_backup);
+        if (restored.userId !== user.id) throw new Error("مفتاح الاستعادة لا يخص هذا الحساب.");
+        const deviceId = crypto.randomUUID();
         await supabase.from("devices").insert({
           id: deviceId,
           user_id: user.id,
           device_name: navigator.userAgent.slice(0, 60),
           platform: "web",
-          public_key: keys.publicKey,
+          public_key: restored.identityPublicKey,
         });
         const contents: VaultContents = {
-          userId: user.id,
-          username: uname,
+          ...restored,
           deviceId,
           deviceName: navigator.userAgent.slice(0, 60),
-          identityPublicKey: keys.publicKey,
-          identityPrivateKey: keys.privateKey,
-          recoveryCodeHint: "",
-          createdAt: new Date().toISOString(),
+          recoveryCodeHint: recoveryInput.trim().slice(0, 4),
         };
         await createVault(passphrase, contents);
         refreshVaultFlags();
@@ -252,6 +257,20 @@ function AuthPage() {
             />
             <p className="text-xs text-muted-foreground">{t("auth.username.hint")}</p>
           </div>
+
+          {mode === "signin" && (
+            <div className="space-y-2">
+              <Label htmlFor="recovery-key">مفتاح استعادة الرسائل</Label>
+              <Input
+                id="recovery-key"
+                type="password"
+                value={recoveryInput}
+                onChange={(e) => setRecoveryInput(e.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">يُستخدم هذا المفتاح محليًا فقط لفتح نسخة مفاتيحك المشفرة.</p>
+            </div>
+          )}
 
           {mode === "signup" && (
             <div className="space-y-2">

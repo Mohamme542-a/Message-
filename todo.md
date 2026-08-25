@@ -154,3 +154,9 @@
 - [x] Apply the supplied Supabase storage/device-token migrations and verify the FCM column, private bucket, and two attachment policies.
 - [ ] Verify background FCM notification delivery on a physical Android device after installing the new APK.
 - [x] Determine whether the Lovable project owner can apply the Supabase migrations without exposing a service-role key, or document the required owner handoff.
+- [x] Rebuild the Android launcher, splash, and activation presentation in the requested black-and-white merged A+B style without explanatory AI-like copy.
+- [x] Fix the chat viewport and composer layout so it remains stable below system bars and does not show the white broken state seen on Android.
+- [x] Replace the attachment audio opener with an in-chat play/pause audio player for encrypted recordings.
+- [x] Diagnose and repair Android notification visibility, including runtime permission, notification channel, and foreground display behavior.
+- [x] Add a clear encrypted-message key backup and restore entry point that never uploads the user key.
+- [x] Apply the encrypted recovery-backup column migration in Lovable before enabling new-device restoration.

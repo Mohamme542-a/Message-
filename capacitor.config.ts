@@ -9,6 +9,15 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     allowNavigation: ["abmessenger-miwecp5v.manus.space"],
   },
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert", "banner", "list"],
+    },
+    LocalNotifications: {
+      smallIcon: "ic_stat_ab",
+      iconColor: "#111111",
+    },
+  },
 };
 
 export default config;

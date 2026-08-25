@@ -48,23 +48,37 @@ describe("Alpha Byte imported-project identity", () => {
     expect(runtime).toContain("publicDirectory");
   });
 
-  it("keeps requested messaging enhancements encrypted and locally configurable", async () => {
-    const [attachments, chat, push, settings, vault, migration] = await Promise.all([
+  it("keeps requested messaging enhancements encrypted, recoverable, and natively visible", async () => {
+    const [attachments, chat, push, settings, vault, migration, recoveryMigration, activation, nativeActivity] = await Promise.all([
       readFile(path.join(root, "lib/attachments.ts"), "utf8"),
       readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
       readFile(path.join(root, "lib/push-notifications.ts"), "utf8"),
       readFile(path.join(root, "routes/_authenticated/settings.tsx"), "utf8"),
       readFile(path.join(root, "lib/vault.ts"), "utf8"),
       readFile(path.join(root, "..", "supabase/migrations/20260825091000_encrypted_attachment_storage.sql"), "utf8"),
+      readFile(path.join(root, "..", "supabase/migrations/20260825103000_add_encrypted_recovery_backup.sql"), "utf8"),
+      readFile(path.join(root, "components/ActivationGate.tsx"), "utf8"),
+      readFile(path.join(root, "..", "android/app/src/main/java/Com/qarfash/MainActivity.java"), "utf8"),
     ]);
     expect(attachments).toContain("encryptFile");
     expect(attachments).toContain("encrypted-attachments");
     expect(chat).toContain("MediaRecorder");
     expect(chat).toContain("uploadEncryptedAttachment");
     expect(chat).toContain("setClock");
+    expect(chat).toContain("audio.play()");
+    expect(chat).toContain("إيقاف");
     expect(push).toContain("PushNotifications.requestPermissions");
+    expect(push).toContain("LocalNotifications.createChannel");
+    expect(push).toContain("alpha_byte_messages");
     expect(settings).toContain("accentColor");
+    expect(settings).toContain("createMessageRecovery");
+    expect(settings).toContain("مفتاح استعادة الرسائل");
     expect(vault).toContain('theme: "dark" | "light" | "system"');
+    expect(vault).toContain("createRecoveryBackup");
+    expect(vault).toContain("restoreVaultFromRecovery");
     expect(migration).toContain("conversation members read encrypted attachments");
+    expect(recoveryMigration).toContain("recovery_backup");
+    expect(activation).toContain("activation-card");
+    expect(nativeActivity).toContain("NotificationManager.IMPORTANCE_HIGH");
   });
 });

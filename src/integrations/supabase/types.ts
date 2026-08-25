@@ -244,6 +244,7 @@ export type Database = {
           display_name: string
           id: string
           identity_public_key: string | null
+          recovery_backup: string | null
           last_seen: string
           private_notifications: boolean
           read_receipts: boolean
@@ -263,6 +264,7 @@ export type Database = {
           display_name?: string
           id: string
           identity_public_key?: string | null
+          recovery_backup?: string | null
           last_seen?: string
           private_notifications?: boolean
           read_receipts?: boolean
@@ -282,6 +284,7 @@ export type Database = {
           display_name?: string
           id?: string
           identity_public_key?: string | null
+          recovery_backup?: string | null
           last_seen?: string
           private_notifications?: boolean
           read_receipts?: boolean

@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
+import { LocalNotifications } from "@capacitor/local-notifications";
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,6 +14,18 @@ export async function registerPushNotifications(
   const permission = await PushNotifications.requestPermissions();
   if (permission.receive !== "granted") return () => {};
 
+  const localPermission = await LocalNotifications.requestPermissions();
+  if (localPermission.display !== "granted") return () => {};
+
+  await LocalNotifications.createChannel({
+    id: "alpha_byte_messages",
+    name: "رسائل Alpha Byte",
+    description: "تنبيهات الرسائل الجديدة",
+    importance: 5,
+    visibility: 0,
+    vibration: true,
+  });
+
   const registration = await PushNotifications.addListener("registration", async ({ value }) => {
     await supabase
       .from("devices")
@@ -20,7 +33,22 @@ export async function registerPushNotifications(
       .eq("id", deviceId)
       .eq("user_id", userId);
   });
-  const foreground = await PushNotifications.addListener("pushNotificationReceived", () => onForegroundMessage());
+  const foreground = await PushNotifications.addListener("pushNotificationReceived", (notification) => {
+    const identifier = Number.parseInt(notification.id || "0", 36) || Date.now() % 2_000_000_000;
+    void LocalNotifications.schedule({
+      notifications: [{
+        id: Math.abs(identifier),
+        title: "Alpha Byte",
+        body: "لديك رسالة جديدة",
+        channelId: "alpha_byte_messages",
+        smallIcon: "ic_stat_ab",
+        foreground: true,
+        autoCancel: true,
+        extra: notification.data,
+      }],
+    });
+    onForegroundMessage();
+  });
   await PushNotifications.register();
 
   return () => {

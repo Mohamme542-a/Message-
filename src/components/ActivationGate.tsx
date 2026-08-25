@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -30,24 +30,23 @@ export function ActivationGate({ onActivated }: { onActivated: () => void }) {
   }
 
   return (
-      <main className="app-shell aurora flex w-screen max-w-screen items-center justify-center overflow-x-hidden px-5 py-10">
-      <section className="animate-rise box-border w-full max-w-[calc(100vw-2.5rem)] rounded-3xl border border-border glass p-6 shadow-float sm:max-w-md">
+      <main className="activation-shell app-shell flex w-screen max-w-screen items-center justify-center overflow-x-hidden px-5 py-10">
+      <section className="activation-card animate-rise box-border w-full max-w-[calc(100vw-2.5rem)] p-6 sm:max-w-md">
         <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl brand-bg shadow-glow" aria-label="Alpha Byte">
-            <span className="alpha-byte-cover text-2xl">A<span>B</span></span>
+          <div className="ab-emblem mx-auto" aria-label="Alpha Byte">
+            <span className="alpha-byte-cover">A<span>B</span></span>
           </div>
-          <h1 className="mt-4 text-3xl font-extrabold">Alpha Byte</h1>
-          <p className="mt-2 text-sm text-muted-foreground">تفعيل الدخول الآمن إلى التطبيق</p>
+          <p className="mt-6 text-xs font-semibold tracking-[0.28em] text-zinc-400">ALPHA BYTE</p>
+          <h1 className="mt-3 text-4xl font-black tracking-tight text-white">Alpha Byte</h1>
         </div>
         <form className="mt-7 space-y-4" onSubmit={submit}>
-          <label className="space-y-2 text-sm font-semibold" htmlFor="activation-code">
-            <span className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-primary" /> رمز التفعيل</span>
-            <Input id="activation-code" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" inputMode="text" placeholder="أدخل الرمز الذي استلمته" disabled={busy} />
+          <label className="activation-label space-y-2 text-sm font-bold text-white" htmlFor="activation-code">
+            <span>رمز التفعيل</span>
+            <Input id="activation-code" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" inputMode="text" placeholder="" disabled={busy} />
           </label>
-          <p className="rounded-2xl border border-border bg-muted/35 p-3 text-xs leading-5 text-muted-foreground">يُرسل الرمز للتحقق على الخادم فقط ولا يُضمّن في التطبيق.</p>
-          <Button className="w-full press" disabled={busy} type="submit">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            {busy ? "جارٍ التحقق" : "تفعيل المتابعة"}
+          <Button className="activation-submit w-full press" disabled={busy} type="submit">
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {busy ? "جارٍ التحقق" : "متابعة"}
           </Button>
         </form>
       </section>
