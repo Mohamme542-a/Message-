@@ -6,6 +6,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), tsconfigPaths()],
+  server: { host: true },
   preview: { allowedHosts: true },
   build: {
     outDir: "dist/public",
