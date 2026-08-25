@@ -1,10 +1,12 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { MessageCircle, Users, Phone, Settings } from "lucide-react";
+import { toast } from "sonner";
 
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { registerPushNotifications } from "@/lib/push-notifications";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -22,6 +24,17 @@ function AuthenticatedShell() {
     if (!session || !hasVault) navigate({ to: "/auth", replace: true });
     else if (!vault) navigate({ to: "/lock", replace: true });
   }, [ready, session, hasVault, vault, navigate]);
+
+  useEffect(() => {
+    if (!session?.user.id || !vault?.deviceId) return;
+    let dispose = () => {};
+    void registerPushNotifications(session.user.id, vault.deviceId, () => {
+      toast.info("لديك رسالة جديدة في Alpha Byte");
+    }).then((cleanup) => {
+      dispose = cleanup;
+    });
+    return () => dispose();
+  }, [session?.user.id, vault?.deviceId]);
 
   if (!ready || !session || !vault) {
     return (

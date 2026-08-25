@@ -1,7 +1,8 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.alphabyte.messenger",
+  // Must match the Android package registered in the supplied Firebase configuration.
+  appId: "Com.qarfash",
   appName: "Alpha Byte",
   webDir: "dist/public",
   server: {

@@ -77,7 +77,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       (settings.theme === "system" &&
         window.matchMedia("(prefers-color-scheme: dark)").matches);
     root.classList.toggle("dark", dark);
-  }, [settings.theme]);
+    root.dataset["accent"] = settings.accentColor;
+  }, [settings.theme, settings.accentColor]);
 
   const updateSettings = useCallback((patch: Partial<LocalSettings>) => {
     setSettings((prev) => {

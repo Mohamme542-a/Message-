@@ -138,6 +138,7 @@ export type Database = {
         Row: {
           created_at: string
           device_name: string
+          fcm_token: string | null
           id: string
           last_active: string
           platform: string
@@ -148,6 +149,7 @@ export type Database = {
         Insert: {
           created_at?: string
           device_name: string
+          fcm_token?: string | null
           id?: string
           last_active?: string
           platform?: string
@@ -158,6 +160,7 @@ export type Database = {
         Update: {
           created_at?: string
           device_name?: string
+          fcm_token?: string | null
           id?: string
           last_active?: string
           platform?: string

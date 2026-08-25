@@ -143,3 +143,12 @@
 - [x] Add a secure server-verified activation-code gate to the current Supabase application before account access.
 - [x] Recreate the requested Alpha Byte cover and login presentation for the new APK without reusing legacy secrets or binaries.
 - [x] Build and verify a new Android APK that uses the current Supabase authentication flow and activation gate.
+- [x] Update the Android launcher cover and authentication shell to the requested merged A+B Alpha Byte identity.
+- [x] Add real image, file, and recorded-audio attachment flows with required Android permissions and authorized storage.
+- [x] Show each conversation's latest message and keep live message state updated while the chat remains open.
+- [x] Implement selected notification behavior and Android notification permission without promising unsupported background delivery.
+- [x] Integrate Firebase Cloud Messaging background notifications after receiving a public google-services.json registered for the supplied Firebase package.
+- [x] Align the Android application identifier with the package registered in the provided Firebase configuration, then integrate and verify FCM safely.
+- [x] Make disappearing messages expire and disappear while the conversation remains open.
+- [x] Add dark/light modes and user-selectable application accent colors.
+- [ ] Apply the supplied Supabase storage/device-token migrations and verify a background FCM notification on a physical Android device.

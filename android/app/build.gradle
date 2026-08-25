@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.alphabyte.messenger"
+    namespace = "Com.qarfash"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.alphabyte.messenger"
+        applicationId "Com.qarfash"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

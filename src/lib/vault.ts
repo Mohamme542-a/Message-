@@ -127,6 +127,7 @@ export interface LocalSettings {
   emergencyWipeOnPanic: boolean;
   language: "ar" | "en";
   theme: "dark" | "light" | "system";
+  accentColor: "aqua" | "violet" | "rose" | "amber";
   failedUnlockAttempts: number;
 }
 
@@ -137,6 +138,7 @@ export const defaultSettings: LocalSettings = {
   emergencyWipeOnPanic: false,
   language: "ar",
   theme: "dark",
+  accentColor: "aqua",
   failedUnlockAttempts: 0,
 };
 

@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +12,18 @@ const port = Number(process.env.PORT || 3000);
 const activationCode = process.env.AB_ACTIVATION_CODE || "";
 const activationSigningKey = process.env.JWT_SECRET || activationCode;
 const activationLifetimeMs = 1000 * 60 * 60 * 24 * 30;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
+const supabasePublishableKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+
+function firebaseMessaging() {
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (!projectId || !clientEmail || !privateKey) return null;
+
+  const app = getApps()[0] || initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+  return getMessaging(app);
+}
 
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -125,6 +139,77 @@ async function handleActivationRequest(request, response, pathname) {
   return false;
 }
 
+async function supabaseJson(pathname, accessToken) {
+  if (!supabaseUrl || !supabasePublishableKey || !accessToken) return null;
+  const response = await fetch(`${supabaseUrl}${pathname}`, {
+    headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) return null;
+  return response.json();
+}
+
+async function handleNotificationRequest(request, response, pathname) {
+  if (request.method === "OPTIONS") {
+    writeJson(response, 204, {});
+    return true;
+  }
+  if (pathname !== "/api/notifications/message") return false;
+  if (request.method !== "POST") {
+    writeJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return true;
+  }
+
+  try {
+    const accessToken = request.headers.authorization?.replace(/^Bearer\s+/i, "") || "";
+    const body = await readJsonBody(request);
+    const messageId = typeof body?.messageId === "string" ? body.messageId : "";
+    const messaging = firebaseMessaging();
+    if (!messaging) {
+      writeJson(response, 503, { ok: false, error: "PUSH_UNAVAILABLE" });
+      return true;
+    }
+
+    const [user, messages] = await Promise.all([
+      supabaseJson("/auth/v1/user", accessToken),
+      supabaseJson(`/rest/v1/messages?id=eq.${encodeURIComponent(messageId)}&select=conversation_id,sender_id`, accessToken),
+    ]);
+    const message = Array.isArray(messages) ? messages[0] : null;
+    if (!user?.id || !message || message.sender_id !== user.id) {
+      writeJson(response, 403, { ok: false, error: "NOT_ALLOWED" });
+      return true;
+    }
+
+    const conversations = await supabaseJson(
+      `/rest/v1/conversations?id=eq.${encodeURIComponent(message.conversation_id)}&select=user_a,user_b`,
+      accessToken,
+    );
+    const conversation = Array.isArray(conversations) ? conversations[0] : null;
+    const recipientId = conversation?.user_a === user.id ? conversation?.user_b : conversation?.user_a;
+    if (!recipientId) {
+      writeJson(response, 403, { ok: false, error: "NOT_ALLOWED" });
+      return true;
+    }
+
+    const devices = await supabaseJson(
+      `/rest/v1/devices?user_id=eq.${encodeURIComponent(recipientId)}&revoked=eq.false&fcm_token=not.is.null&select=fcm_token`,
+      accessToken,
+    );
+    const tokens = [...new Set((Array.isArray(devices) ? devices : []).map((device) => device.fcm_token).filter(Boolean))];
+    if (tokens.length) {
+      await messaging.sendEachForMulticast({
+        tokens,
+        notification: { title: "Alpha Byte", body: "لديك رسالة جديدة" },
+        data: { conversationId: message.conversation_id, messageId },
+        android: { priority: "high", notification: { channelId: "alpha_byte_messages" } },
+      });
+    }
+    writeJson(response, 200, { ok: true });
+  } catch {
+    writeJson(response, 500, { ok: false, error: "PUSH_DELIVERY_FAILED" });
+  }
+  return true;
+}
+
 async function sendFile(response, filePath, method) {
   const extension = path.extname(filePath).toLowerCase();
   const isHashedAsset = filePath.includes(`${path.sep}assets${path.sep}`);
@@ -145,6 +230,10 @@ const server = createServer(async (request, response) => {
 
   if (pathname.startsWith("/api/activation/")) {
     await handleActivationRequest(request, response, pathname);
+    return;
+  }
+  if (pathname.startsWith("/api/notifications/")) {
+    await handleNotificationRequest(request, response, pathname);
     return;
   }
 

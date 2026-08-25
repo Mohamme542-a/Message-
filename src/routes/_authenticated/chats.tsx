@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { Lock, Search, ShieldCheck } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { decryptWithKey, deriveConversationKey } from "@/lib/crypto";
 import { listConversations } from "@/lib/ab-api";
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
@@ -24,27 +25,57 @@ export const Route = createFileRoute("/_authenticated/chats")({
 
 function ChatsPage() {
   const { t } = useI18n();
-  const { session } = useSession();
+  const { session, vault } = useSession();
   const userId = session?.user.id ?? "";
   const [query, setQuery] = useState("");
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["conversations", userId],
-    enabled: Boolean(userId),
+    enabled: Boolean(userId && vault),
     queryFn: async () => {
       const conversations = await listConversations(userId);
       const peerIds = conversations.map((c) => (c.user_a === userId ? c.user_b : c.user_a));
       if (peerIds.length === 0) return [];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, username, display_name, avatar_url, last_seen, show_online")
+        .select("id, username, display_name, avatar_url, last_seen, show_online, identity_public_key")
         .in("id", peerIds);
-      return conversations.map((c) => ({
-        conversation: c,
-        peer: profiles?.find((p) => p.id === (c.user_a === userId ? c.user_b : c.user_a)) ?? null,
+      const rows = await Promise.all(conversations.map(async (conversation) => {
+        const peer = profiles?.find((profile) => profile.id === (conversation.user_a === userId ? conversation.user_b : conversation.user_a)) ?? null;
+        const { data: latest } = await supabase
+          .from("messages")
+          .select("encrypted_payload, iv, kind, created_at")
+          .eq("conversation_id", conversation.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        let preview = `@${peer?.username ?? "—"}`;
+        if (latest && peer?.identity_public_key && vault) {
+          try {
+            const key = await deriveConversationKey(vault.identityPrivateKey, peer.identity_public_key, conversation.id);
+            const decoded = await decryptWithKey(key, { ciphertext: latest.encrypted_payload, iv: latest.iv });
+            if (latest.kind === "image") preview = "صورة مشفّرة";
+            else if (latest.kind === "audio") preview = "رسالة صوتية";
+            else if (latest.kind === "file") preview = "ملف مشفّر";
+            else preview = decoded;
+          } catch { preview = "رسالة مشفّرة"; }
+        }
+        return { conversation, peer, latest, preview };
       }));
+      return rows.sort((a, b) => (b.latest?.created_at ?? b.conversation.updated_at).localeCompare(a.latest?.created_at ?? a.conversation.updated_at));
     },
   });
+
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase.channel(`conversation-previews:${userId}`).on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "messages" },
+      () => void queryClient.invalidateQueries({ queryKey: ["conversations", userId] }),
+    ).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [queryClient, userId]);
 
   const rows = useMemo(() => {
     const list = data ?? [];
@@ -90,7 +121,7 @@ function ChatsPage() {
         </div>
       ) : (
         <ul className="space-y-2">
-          {rows.map(({ conversation, peer }) => (
+          {rows.map(({ conversation, peer, latest, preview }) => (
             <li key={conversation.id}>
               <Link
                 to="/chat/$id"
@@ -105,10 +136,10 @@ function ChatsPage() {
                     {peer?.display_name || peer?.username || "—"}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    @{peer?.username ?? "—"}
+                    {preview}
                   </span>
                 </span>
-                <Lock className="h-4 w-4 text-primary" />
+                <span className="flex flex-col items-end gap-1"><Lock className="h-4 w-4 text-primary" />{latest && <span className="text-[10px] text-muted-foreground">{new Date(latest.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}</span>
               </Link>
             </li>
           ))}

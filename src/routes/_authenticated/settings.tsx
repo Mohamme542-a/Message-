@@ -7,8 +7,11 @@ import {
   Languages,
   LogOut,
   Monitor,
+  Moon,
+  Palette,
   ShieldAlert,
   ShieldCheck,
+  Sun,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -248,6 +251,26 @@ function SettingsPage() {
               {code === "ar" ? "العربية" : "English"}
             </Button>
           ))}
+        </div>
+        <p className="mb-2 mt-5 text-xs font-semibold">المظهر</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { value: "dark" as const, label: "داكن", icon: Moon },
+            { value: "light" as const, label: "فاتح", icon: Sun },
+            { value: "system" as const, label: "النظام", icon: Monitor },
+          ].map((option) => {
+            const Icon = option.icon;
+            return <Button key={option.value} variant={settings.theme === option.value ? "default" : "outline"} className="gap-1 text-xs" onClick={() => updateSettings({ theme: option.value })}><Icon className="h-3.5 w-3.5" />{option.label}</Button>;
+          })}
+        </div>
+        <p className="mb-2 mt-5 flex items-center gap-2 text-xs font-semibold"><Palette className="h-3.5 w-3.5" />لون التطبيق</p>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { value: "aqua" as const, label: "فيروزي", color: "bg-cyan-400" },
+            { value: "violet" as const, label: "بنفسجي", color: "bg-violet-500" },
+            { value: "rose" as const, label: "وردي", color: "bg-rose-500" },
+            { value: "amber" as const, label: "كهرماني", color: "bg-amber-400" },
+          ].map((option) => <button key={option.value} type="button" onClick={() => updateSettings({ accentColor: option.value })} className={`rounded-2xl border p-2 text-center text-[10px] press ${settings.accentColor === option.value ? "border-primary ring-2 ring-primary/30" : "border-border"}`}><span className={`mx-auto mb-1 block h-5 w-5 rounded-full ${option.color}`} />{option.label}</button>)}
         </div>
       </section>
 

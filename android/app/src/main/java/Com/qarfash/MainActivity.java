@@ -1,4 +1,4 @@
-package com.alphabyte.messenger;
+package Com.qarfash;
 
 import com.getcapacitor.BridgeActivity;
 

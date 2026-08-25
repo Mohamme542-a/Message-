@@ -146,6 +146,25 @@ export async function encryptFile(
   return { encrypted: new Uint8Array(encrypted), keyB64: toB64(raw), ivB64: toB64(iv) };
 }
 
+export async function decryptFile(
+  encrypted: ArrayBuffer,
+  keyB64: string,
+  ivB64: string,
+): Promise<ArrayBuffer> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    bufferSource(fromB64(keyB64)),
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"],
+  );
+  return crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: bufferSource(fromB64(ivB64)) },
+    key,
+    encrypted,
+  );
+}
+
 /* ---------- تغليف بعبارة مرور / PIN ---------- */
 
 export async function deriveWrappingKey(secret: string, saltB64: string): Promise<CryptoKey> {

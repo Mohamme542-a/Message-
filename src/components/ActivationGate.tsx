@@ -30,8 +30,8 @@ export function ActivationGate({ onActivated }: { onActivated: () => void }) {
   }
 
   return (
-    <main className="app-shell aurora flex items-center justify-center px-5 py-10">
-      <section className="animate-rise w-full max-w-md rounded-3xl border border-border glass p-6 shadow-float">
+      <main className="app-shell aurora flex w-screen max-w-screen items-center justify-center overflow-x-hidden px-5 py-10">
+      <section className="animate-rise box-border w-full max-w-[calc(100vw-2.5rem)] rounded-3xl border border-border glass p-6 shadow-float sm:max-w-md">
         <div className="text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl brand-bg shadow-glow" aria-label="Alpha Byte">
             <span className="alpha-byte-cover text-2xl">A<span>B</span></span>
