@@ -59,9 +59,10 @@ export async function registerPushNotifications(
 
 export async function notifyPeerOfNewMessage(accessToken: string, messageId: string) {
   if (!Capacitor.isNativePlatform() || !accessToken || !messageId) return;
-  await fetch("https://abmessenger-miwecp5v.manus.space/api/notifications/message", {
+  const response = await fetch("https://abmessenger-miwecp5v.manus.space/api/notifications/message", {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messageId }),
   });
+  if (!response.ok) throw new Error("PUSH_DELIVERY_FAILED");
 }

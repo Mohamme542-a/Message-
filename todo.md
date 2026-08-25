@@ -165,3 +165,5 @@
 - [x] Repair native microphone permission and audio-recording startup for Android.
 - [x] Ensure selected accent colors visibly affect the interface without reintroducing unwanted purple defaults.
 - [x] Add sent, delivered, and read indicators to messages with an appropriate data model and live updates.
+- [ ] Repair microphone recording and Android notification delivery after physical-device test failure.
+- [x] Make the Android back button navigate within Alpha Byte first, then ask for exit confirmation only at the root screen.

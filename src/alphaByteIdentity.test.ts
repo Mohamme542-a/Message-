@@ -49,7 +49,7 @@ describe("Alpha Byte imported-project identity", () => {
   });
 
   it("keeps requested messaging enhancements encrypted, recoverable, and natively visible", async () => {
-    const [attachments, chat, push, settings, vault, migration, recoveryMigration, activation, nativeActivity, i18n, microphone, session] = await Promise.all([
+    const [attachments, chat, push, settings, vault, migration, recoveryMigration, activation, nativeActivity, microphonePlugin, authenticatedShell, runtime, i18n, microphone, session] = await Promise.all([
       readFile(path.join(root, "lib/attachments.ts"), "utf8"),
       readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
       readFile(path.join(root, "lib/push-notifications.ts"), "utf8"),
@@ -59,6 +59,9 @@ describe("Alpha Byte imported-project identity", () => {
       readFile(path.join(root, "..", "supabase/migrations/20260825103000_add_encrypted_recovery_backup.sql"), "utf8"),
       readFile(path.join(root, "components/ActivationGate.tsx"), "utf8"),
       readFile(path.join(root, "..", "android/app/src/main/java/Com/qarfash/MainActivity.java"), "utf8"),
+      readFile(path.join(root, "..", "android/app/src/main/java/Com/qarfash/MicrophonePermissionPlugin.java"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/route.tsx"), "utf8"),
+      readFile(path.join(root, "..", "server/static-server.mjs"), "utf8"),
       readFile(path.join(root, "lib/i18n.tsx"), "utf8"),
       readFile(path.join(root, "lib/microphone.ts"), "utf8"),
       readFile(path.join(root, "lib/session.tsx"), "utf8"),
@@ -85,6 +88,14 @@ describe("Alpha Byte imported-project identity", () => {
     expect(recoveryMigration).toContain("recovery_backup");
     expect(activation).toContain("activation-card");
     expect(nativeActivity).toContain("NotificationManager.IMPORTANCE_HIGH");
+    expect(nativeActivity.indexOf("registerPlugin(MicrophonePermissionPlugin.class)")).toBeLessThan(nativeActivity.indexOf("super.onCreate(savedInstanceState)"));
+    expect(microphonePlugin).toContain('result.put("status", status)');
+    expect(microphonePlugin).toContain('resolveWithStatus(call, "granted")');
+    expect(runtime).toContain("/api/notifications/status");
+    expect(runtime).toContain("Authorization, Content-Type");
+    expect(authenticatedShell).toContain('App.addListener("backButton"');
+    expect(authenticatedShell).toContain("window.history.back()");
+    expect(authenticatedShell).toContain("App.exitApp()");
     expect(i18n).not.toContain("TURN");
     expect(i18n).not.toContain("Capacitor build");
     expect(microphone).toContain("beginVoiceCapture");

@@ -25,6 +25,14 @@ function firebaseMessaging() {
   return getMessaging(app);
 }
 
+function isFirebaseConfigured() {
+  return Boolean(
+    process.env.FIREBASE_PROJECT_ID
+    && process.env.FIREBASE_CLIENT_EMAIL
+    && process.env.FIREBASE_PRIVATE_KEY,
+  );
+}
+
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -54,8 +62,8 @@ function resolveStaticFile(pathname) {
 
 function writeJson(response, status, body) {
   response.writeHead(status, {
-    "Access-Control-Allow-Headers": "Content-Type, X-Alpha-Activation-Token",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Alpha-Activation-Token",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Origin": "*",
     "Cache-Control": "no-store",
     "Content-Type": "application/json; charset=utf-8",
@@ -151,6 +159,14 @@ async function supabaseJson(pathname, accessToken) {
 async function handleNotificationRequest(request, response, pathname) {
   if (request.method === "OPTIONS") {
     writeJson(response, 204, {});
+    return true;
+  }
+  if (pathname === "/api/notifications/status") {
+    if (request.method !== "GET") {
+      writeJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+      return true;
+    }
+    writeJson(response, 200, { ok: true, enabled: isFirebaseConfigured() });
     return true;
   }
   if (pathname !== "/api/notifications/message") return false;
