@@ -138,4 +138,4 @@
 - [x] Configure the replacement project with only the user-approved Supabase URL and publishable key from the archive, never importing any private or service key.
 - [x] Fix the deployment asset contract so the client build produces the required dist/public payload before the platform upload step.
 - [x] Generate a secure static-server entry at dist/index.js that binds to the platform port and serves SPA routes.
-- [ ] Verify the repaired build output, save a checkpoint, and confirm the resulting deployment state.
+- [x] Verify the repaired build output, save a checkpoint, and confirm the resulting deployment state.
