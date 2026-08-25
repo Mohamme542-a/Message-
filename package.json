@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build && node scripts/prepare-deployment-runtime.mjs",
-    "build:admin": "VITE_APP_EDITION=admin vite build && node scripts/prepare-deployment-runtime.mjs",
+    "build:admin": "VITE_APP_EDITION=admin AB_APP_EDITION=admin vite build && node scripts/prepare-deployment-runtime.mjs",
     "build:dev": "vite build --mode development",
     "android:sync": "pnpm build && cap sync android",
     "android:user:debug": "pnpm build && cap sync android && cd android && ./gradlew -PenableFirebase assembleUserDebug",
-    "android:admin:debug": "pnpm build:admin && cap sync android && cd android && ./gradlew assembleAdminDebug",
+    "android:admin:debug": "pnpm build:admin && AB_APP_EDITION=admin cap sync android && cd android && ./gradlew assembleAdminDebug",
     "android:debug": "pnpm android:user:debug",
     "preview": "vite preview",
     "check": "tsc --noEmit",

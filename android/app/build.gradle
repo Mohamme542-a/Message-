@@ -23,7 +23,7 @@ android {
         }
         admin {
             dimension "audience"
-            applicationIdSuffix ".admin"
+            applicationId "Com.qarfash.admin"
             versionNameSuffix "-admin"
         }
     }

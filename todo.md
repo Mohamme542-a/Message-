@@ -176,3 +176,4 @@
 - [x] Implement admin-issued subscription codes with controlled duration and user redemption flow.
 - [x] Diagnose and repair the video-send failure shown in the supplied recording.
 - [x] Verify, build, and deliver a separate sanitized Android APK for Alpha Byte administration.
+- [x] Fix the Alpha Byte Admin APK so it installs beside, rather than replaces, the Alpha Byte user APK.

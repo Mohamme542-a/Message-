@@ -1,9 +1,11 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
+const isAdminEdition = process.env.AB_APP_EDITION === "admin";
+
 const config: CapacitorConfig = {
   // Must match the Android package registered in the supplied Firebase configuration.
-  appId: "Com.qarfash",
-  appName: "Alpha Byte",
+  appId: isAdminEdition ? "Com.qarfash.admin" : "Com.qarfash",
+  appName: isAdminEdition ? "Alpha Byte Admin" : "Alpha Byte",
   webDir: "dist/public",
   server: {
     androidScheme: "https",
