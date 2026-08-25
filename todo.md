@@ -151,4 +151,6 @@
 - [x] Align the Android application identifier with the package registered in the provided Firebase configuration, then integrate and verify FCM safely.
 - [x] Make disappearing messages expire and disappear while the conversation remains open.
 - [x] Add dark/light modes and user-selectable application accent colors.
-- [ ] Apply the supplied Supabase storage/device-token migrations and verify a background FCM notification on a physical Android device.
+- [x] Apply the supplied Supabase storage/device-token migrations and verify the FCM column, private bucket, and two attachment policies.
+- [ ] Verify background FCM notification delivery on a physical Android device after installing the new APK.
+- [x] Determine whether the Lovable project owner can apply the Supabase migrations without exposing a service-role key, or document the required owner handoff.
