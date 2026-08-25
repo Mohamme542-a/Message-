@@ -7,6 +7,8 @@ export interface ProfileRow {
   bio: string;
   avatar_url: string | null;
   identity_public_key: string | null;
+  is_verified: boolean;
+  premium_until: string | null;
   status: string;
   last_seen: string;
   show_online: boolean;

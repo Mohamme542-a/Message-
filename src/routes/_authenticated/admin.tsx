@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowRight, ShieldAlert } from "lucide-react";
+import { ArrowRight, Copy, ShieldAlert, TicketCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { hasRole } from "@/lib/ab-api";
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
+import { createSubscriptionCode } from "@/lib/subscriptions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   ssr: false,
@@ -33,6 +34,10 @@ function AdminPage() {
   const { session } = useSession();
   const userId = session?.user.id ?? "";
   const [term, setTerm] = useState("");
+  const [codeDuration, setCodeDuration] = useState(30);
+  const [codeUses, setCodeUses] = useState(1);
+  const [issuedCode, setIssuedCode] = useState<string | null>(null);
+  const [issuingCode, setIssuingCode] = useState(false);
 
   const { data: isAdmin, isLoading } = useQuery({
     queryKey: ["isAdmin", userId],
@@ -69,14 +74,14 @@ function AdminPage() {
     queryKey: ["adminUsers", term],
     enabled: Boolean(isAdmin),
     queryFn: async () => {
-      let query = supabase
-        .from("profiles")
-        .select("id, username, display_name, status, created_at")
+      const profilesTable = (supabase as unknown as { from: (table: string) => any }).from("profiles");
+      let query = profilesTable
+        .select("id, username, display_name, status, is_verified, created_at")
         .order("created_at", { ascending: false })
         .limit(30);
       if (term.trim()) query = query.ilike("username", `%${term.trim().toLowerCase()}%`);
       const { data } = await query;
-      return data ?? [];
+      return (data ?? []) as Array<{ id: string; username: string; display_name: string; status: string; is_verified: boolean; created_at: string }>;
     },
   });
 
@@ -104,6 +109,16 @@ function AdminPage() {
     },
   });
 
+  const { data: subscriptionCodes } = useQuery({
+    queryKey: ["adminSubscriptionCodes"],
+    enabled: Boolean(isAdmin),
+    queryFn: async () => {
+      const codesTable = (supabase as unknown as { from: (table: string) => any }).from("subscription_codes");
+      const { data } = await codesTable.select("id, duration_days, max_redemptions, redemption_count, disabled, expires_at, created_at").order("created_at", { ascending: false }).limit(8);
+      return (data ?? []) as Array<{ id: string; duration_days: number; max_redemptions: number; redemption_count: number; disabled: boolean; expires_at: string | null; created_at: string }>;
+    },
+  });
+
   async function setStatus(targetId: string, status: "active" | "suspended" | "banned" | "disabled") {
     const { error } = await supabase.from("profiles").update({ status }).eq("id", targetId);
     if (error) {
@@ -119,6 +134,16 @@ function AdminPage() {
     await queryClient.invalidateQueries({ queryKey: ["adminUsers", term] });
   }
 
+  async function setVerified(targetId: string, verified: boolean) {
+    const profilesTable = (supabase as unknown as { from: (table: string) => any }).from("profiles");
+    const { error } = await profilesTable.update({ is_verified: verified }).eq("id", targetId);
+    if (error) {
+      toast.error(t("common.error"));
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["adminUsers", term] });
+  }
+
   async function saveConfig(key: string, value: unknown) {
     const { error } = await supabase
       .from("app_config")
@@ -127,6 +152,21 @@ function AdminPage() {
     else {
       toast.success(t("settings.saved"));
       await queryClient.invalidateQueries({ queryKey: ["adminConfig"] });
+    }
+  }
+
+  async function issueSubscriptionCode() {
+    if (issuingCode) return;
+    setIssuingCode(true);
+    try {
+      const result = await createSubscriptionCode(codeDuration, codeUses);
+      setIssuedCode(result.code);
+      await queryClient.invalidateQueries({ queryKey: ["adminSubscriptionCodes"] });
+      toast.success("تم إنشاء الكود.");
+    } catch {
+      toast.error("تعذر إنشاء الكود.");
+    } finally {
+      setIssuingCode(false);
     }
   }
 
@@ -188,6 +228,14 @@ function AdminPage() {
               <p className="mt-1 text-[11px] text-muted-foreground">{card.label}</p>
             </div>
           ))}
+          <div className="col-span-2 rounded-2xl border border-border glass p-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold"><TicketCheck className="h-4 w-4 text-primary" />أكواد الاشتراك</h2>
+            <p className="mt-1 text-[11px] text-muted-foreground">يظهر الكود الجديد هنا مرة واحدة فقط؛ لا تحفظ المنظومة نص الأكواد في قاعدة البيانات.</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">{[7, 30, 365].map((days) => <Button key={days} type="button" size="sm" variant={codeDuration === days ? "default" : "outline"} onClick={() => setCodeDuration(days)}>{days === 7 ? "أسبوع" : days === 30 ? "شهر" : "سنة"}</Button>)}</div>
+            <div className="mt-2 flex gap-2"><Input type="number" min={1} max={10000} value={codeUses} onChange={(event) => setCodeUses(Math.max(1, Math.min(10000, Number(event.target.value) || 1)))} /><Button type="button" disabled={issuingCode} onClick={() => void issueSubscriptionCode()}>{issuingCode ? "…" : "إنشاء"}</Button></div>
+            {issuedCode ? <div className="mt-3 flex items-center gap-2 rounded-xl bg-muted p-3"><code className="min-w-0 flex-1 select-all truncate font-mono text-sm font-semibold">{issuedCode}</code><Button type="button" size="icon" variant="outline" onClick={() => { void navigator.clipboard.writeText(issuedCode); toast.success("تم النسخ"); }} aria-label="نسخ الكود"><Copy className="h-4 w-4" /></Button></div> : null}
+            {(subscriptionCodes ?? []).length ? <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">{(subscriptionCodes ?? []).map((code) => <p key={code.id}>{code.duration_days} يومًا · {code.redemption_count}/{code.max_redemptions} استخدامات · {new Date(code.created_at).toLocaleDateString()}</p>)}</div> : null}
+          </div>
         </TabsContent>
 
         <TabsContent value="users" className="mt-4 space-y-2">
@@ -203,6 +251,9 @@ function AdminPage() {
                 @{user.username} · {user.status}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => void setVerified(user.id, !user.is_verified)}>
+                  {user.is_verified ? "إزالة التوثيق" : "توثيق"}
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => void setStatus(user.id, "suspended")}>
                   {t("admin.suspend")}
                 </Button>

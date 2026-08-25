@@ -20,6 +20,7 @@ import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDevicesRouteImport } from './routes/_authenticated/devices'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedChatIdRouteImport } from './routes/_authenticated/chat.$id'
+import { Route as AuthenticatedGroupIdRouteImport } from './routes/_authenticated/group.$id'
 import { Route as AuthenticatedSecurityIdRouteImport } from './routes/_authenticated/security.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -76,6 +77,11 @@ const AuthenticatedChatIdRoute = AuthenticatedChatIdRouteImport.update({
   path: '/chat/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedGroupIdRoute = AuthenticatedGroupIdRouteImport.update({
+  id: '/group/$id',
+  path: '/group/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSecurityIdRoute = AuthenticatedSecurityIdRouteImport.update({
   id: '/security/$id',
   path: '/security/$id',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/devices': typeof AuthenticatedDevicesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/chat/$id': typeof AuthenticatedChatIdRoute
+  '/group/$id': typeof AuthenticatedGroupIdRoute
   '/security/$id': typeof AuthenticatedSecurityIdRoute
 }
 export interface FileRoutesByTo {
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/devices': typeof AuthenticatedDevicesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/chat/$id': typeof AuthenticatedChatIdRoute
+  '/group/$id': typeof AuthenticatedGroupIdRoute
   '/security/$id': typeof AuthenticatedSecurityIdRoute
 }
 export interface FileRoutesById {
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/_authenticated/devices': typeof AuthenticatedDevicesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/chat/$id': typeof AuthenticatedChatIdRoute
+  '/_authenticated/group/$id': typeof AuthenticatedGroupIdRoute
   '/_authenticated/security/$id': typeof AuthenticatedSecurityIdRoute
 }
 export interface FileRouteTypes {
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/settings'
     | '/chat/$id'
+    | '/group/$id'
     | '/security/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/settings'
     | '/chat/$id'
+    | '/group/$id'
     | '/security/$id'
   id:
     | '__root__'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/_authenticated/devices'
     | '/_authenticated/settings'
     | '/_authenticated/chat/$id'
+    | '/_authenticated/group/$id'
     | '/_authenticated/security/$id'
   fileRoutesById: FileRoutesById
 }
@@ -252,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/group/$id': {
+      id: '/_authenticated/group/$id'
+      path: '/group/$id'
+      fullPath: '/group/$id'
+      preLoaderRoute: typeof AuthenticatedGroupIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/security/$id': {
       id: '/_authenticated/security/$id'
       path: '/security/$id'
@@ -270,6 +289,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDevicesRoute: typeof AuthenticatedDevicesRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedChatIdRoute: typeof AuthenticatedChatIdRoute
+  AuthenticatedGroupIdRoute: typeof AuthenticatedGroupIdRoute
   AuthenticatedSecurityIdRoute: typeof AuthenticatedSecurityIdRoute
 }
 
@@ -281,6 +301,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDevicesRoute: AuthenticatedDevicesRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedChatIdRoute: AuthenticatedChatIdRoute,
+  AuthenticatedGroupIdRoute: AuthenticatedGroupIdRoute,
   AuthenticatedSecurityIdRoute: AuthenticatedSecurityIdRoute,
 }
 
@@ -296,13 +317,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

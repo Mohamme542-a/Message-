@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -10,10 +10,12 @@ import {
   LogOut,
   Monitor,
   Moon,
+  ImagePlus,
   Palette,
   ShieldAlert,
   ShieldCheck,
   Sun,
+  TicketCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,6 +30,9 @@ import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
 import { createRecoveryBackup, disablePin, enablePin } from "@/lib/vault";
 import { generateRecoveryCode } from "@/lib/crypto";
+import { uploadProfileAvatar } from "@/lib/profile-media";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { redeemSubscriptionCode } from "@/lib/subscriptions";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   ssr: false,
@@ -57,6 +62,10 @@ function SettingsPage() {
   const [pin, setPin] = useState("");
   const [wipeAck, setWipeAck] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [subscriptionCode, setSubscriptionCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", userId],
@@ -86,6 +95,37 @@ function SettingsPage() {
     else {
       toast.success(t("settings.saved"));
       await queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+    }
+  }
+
+  async function chooseAvatar(file: File | undefined) {
+    if (!file || !userId || avatarBusy) return;
+    setAvatarBusy(true);
+    try {
+      const avatarUrl = await uploadProfileAvatar(userId, file);
+      const { error } = await supabase.from("profiles").update({ avatar_url: avatarUrl }).eq("id", userId);
+      if (error) throw error;
+      toast.success("تم تحديث الصورة الشخصية.");
+      await queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+    } catch {
+      toast.error("تعذر رفع الصورة. اختر صورة أصغر من 3 ميغابايت.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function redeemCode() {
+    if (!subscriptionCode.trim() || redeeming) return;
+    setRedeeming(true);
+    try {
+      await redeemSubscriptionCode(subscriptionCode.trim());
+      setSubscriptionCode("");
+      toast.success("تم تفعيل الاشتراك.");
+      await queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+    } catch {
+      toast.error("هذا الكود غير متاح.");
+    } finally {
+      setRedeeming(false);
     }
   }
 
@@ -152,7 +192,35 @@ function SettingsPage() {
 
       <section className="rounded-3xl border border-border glass p-5">
         <h2 className="mb-4 text-sm font-semibold">{t("settings.profile")}</h2>
-        <p className="mb-3 text-xs text-muted-foreground">@{profile?.username ?? "—"}</p>
+        <div className="mb-4 flex items-center gap-3">
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="الصورة الشخصية" className="h-14 w-14 rounded-2xl object-cover" />
+          ) : (
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl brand-bg text-lg font-bold text-primary-foreground">
+              {(profile?.display_name || profile?.username || "?").slice(0, 2).toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              @{profile?.username ?? "—"}
+              {profile?.is_verified ? <VerifiedBadge className="text-sm" /> : null}
+            </p>
+            <Button type="button" variant="outline" size="sm" className="mt-2 gap-1.5" disabled={avatarBusy} onClick={() => avatarInputRef.current?.click()}>
+              <ImagePlus className="h-3.5 w-3.5" />
+              {avatarBusy ? "جارٍ الرفع" : "تغيير الصورة"}
+            </Button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                void chooseAvatar(event.target.files?.[0]);
+                event.currentTarget.value = "";
+              }}
+            />
+          </div>
+        </div>
         <Label className="text-xs">{t("settings.displayName")}</Label>
         <Input className="mt-1" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         <Label className="mt-3 block text-xs">{t("settings.bio")}</Label>
@@ -160,6 +228,12 @@ function SettingsPage() {
         <Button className="mt-4 w-full press" onClick={() => void saveProfile()}>
           {t("settings.save")}
         </Button>
+      </section>
+
+      <section className="rounded-3xl border border-border glass p-5">
+        <h2 className="flex items-center gap-2 text-sm font-semibold"><TicketCheck className="h-4 w-4 text-primary" />الاشتراك</h2>
+        <p className="mt-2 text-xs text-muted-foreground">{profile?.premium_until && new Date(profile.premium_until).getTime() > Date.now() ? `مفعّل حتى ${new Date(profile.premium_until).toLocaleDateString()}` : "أدخل كودًا صادرًا من الإدارة لتفعيل المزايا الإضافية."}</p>
+        <div className="mt-3 flex gap-2"><Input value={subscriptionCode} onChange={(event) => setSubscriptionCode(event.target.value.toUpperCase())} placeholder="AB-XXXXXXXX" autoCapitalize="characters" /><Button type="button" disabled={!subscriptionCode.trim() || redeeming} onClick={() => void redeemCode()}>{redeeming ? "…" : "تفعيل"}</Button></div>
       </section>
 
       <section className="rounded-3xl border border-border glass p-5">

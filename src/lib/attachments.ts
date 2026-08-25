@@ -2,9 +2,9 @@ import { decryptFile, encryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
 
 const bucket = "encrypted-attachments";
-const maxAttachmentBytes = 20 * 1024 * 1024;
+const maxAttachmentBytes = 80 * 1024 * 1024;
 
-export type AttachmentKind = "image" | "audio" | "file";
+export type AttachmentKind = "image" | "audio" | "video" | "file";
 
 export interface AttachmentDescriptor {
   v: 1;
@@ -21,6 +21,7 @@ export interface AttachmentDescriptor {
 function kindFor(file: File): AttachmentKind {
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("audio/")) return "audio";
+  if (file.type.startsWith("video/")) return "video";
   return "file";
 }
 

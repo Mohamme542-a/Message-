@@ -33,20 +33,7 @@ export async function registerPushNotifications(
       .eq("id", deviceId)
       .eq("user_id", userId);
   });
-  const foreground = await PushNotifications.addListener("pushNotificationReceived", (notification) => {
-    const identifier = Number.parseInt(notification.id || "0", 36) || Date.now() % 2_000_000_000;
-    void LocalNotifications.schedule({
-      notifications: [{
-        id: Math.abs(identifier),
-        title: "Alpha Byte",
-        body: "لديك رسالة جديدة",
-        channelId: "alpha_byte_messages",
-        smallIcon: "ic_stat_ab",
-        foreground: true,
-        autoCancel: true,
-        extra: notification.data,
-      }],
-    });
+  const foreground = await PushNotifications.addListener("pushNotificationReceived", () => {
     onForegroundMessage();
   });
   await PushNotifications.register();

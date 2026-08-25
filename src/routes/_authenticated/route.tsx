@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { MessageCircle, Users, Phone, Settings } from "lucide-react";
-import { toast } from "sonner";
 
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
@@ -51,9 +50,7 @@ function AuthenticatedShell() {
   useEffect(() => {
     if (!session?.user.id || !vault?.deviceId) return;
     let dispose = () => {};
-    void registerPushNotifications(session.user.id, vault.deviceId, () => {
-      toast.info("لديك رسالة جديدة في Alpha Byte");
-    }).then((cleanup) => {
+    void registerPushNotifications(session.user.id, vault.deviceId, () => {}).then((cleanup) => {
       dispose = cleanup;
     });
     return () => dispose();

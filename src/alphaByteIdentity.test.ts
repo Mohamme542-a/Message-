@@ -103,4 +103,46 @@ describe("Alpha Byte imported-project identity", () => {
     expect(vault).toContain('theme: "light"');
     expect(session).toContain("themePreferenceSet");
   });
+
+  it("keeps professional community, subscription, and quiet-notification features within their intended boundaries", async () => {
+    const [chat, attachments, push, groups, groupCrypto, groupRoute, verifiedBadge, subscriptions, admin, settings, migration, viteConfig] = await Promise.all([
+      readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
+      readFile(path.join(root, "lib/attachments.ts"), "utf8"),
+      readFile(path.join(root, "lib/push-notifications.ts"), "utf8"),
+      readFile(path.join(root, "lib/groups.ts"), "utf8"),
+      readFile(path.join(root, "lib/group-crypto.ts"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/group.$id.tsx"), "utf8"),
+      readFile(path.join(root, "components/VerifiedBadge.tsx"), "utf8"),
+      readFile(path.join(root, "lib/subscriptions.ts"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/admin.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/settings.tsx"), "utf8"),
+      readFile(path.join(root, "..", "supabase/migrations/20260825180000_community_and_subscription_features.sql"), "utf8"),
+      readFile(path.join(root, "..", "vite.config.ts"), "utf8"),
+    ]);
+
+    expect(chat).toContain("wasAtBottomRef");
+    expect(chat).toContain("publishTyping");
+    expect(chat).toContain("reply_to");
+    expect(chat).toContain("video/*");
+    expect(attachments).toContain('"video"');
+    expect(attachments).toContain("80 * 1024 * 1024");
+    expect(push).toContain('addListener("pushNotificationReceived"');
+    expect(push).not.toContain("LocalNotifications.schedule");
+    expect(groups).toContain("create_group");
+    expect(groups).toContain("group_key_envelopes");
+    expect(groupCrypto).toContain("sealGroupKeyForMember");
+    expect(groupCrypto).toContain("openGroupKeyForMember");
+    expect(groupRoute).toContain("إدارة الأعضاء");
+    expect(groupRoute).toContain("set_group_member_role");
+    expect(verifiedBadge).toContain("BadgeCheck");
+    expect(subscriptions).toContain("create_subscription_code");
+    expect(admin).toContain("createSubscriptionCode");
+    expect(admin).toContain("setVerified");
+    expect(settings).toContain("redeemSubscriptionCode");
+    expect(migration).toContain("CREATE TABLE IF NOT EXISTS public.groups");
+    expect(migration).toContain("CREATE TABLE IF NOT EXISTS public.subscription_codes");
+    expect(migration).toContain("digest(normalized, 'sha256')");
+    expect(migration).toContain("profile-avatars");
+    expect(viteConfig).toContain("tanstackRouter");
+  });
 });

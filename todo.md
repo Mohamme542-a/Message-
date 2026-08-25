@@ -166,4 +166,12 @@
 - [x] Ensure selected accent colors visibly affect the interface without reintroducing unwanted purple defaults.
 - [x] Add sent, delivered, and read indicators to messages with an appropriate data model and live updates.
 - [ ] Repair microphone recording and Android notification delivery after physical-device test failure.
+- [ ] Restore the published Alpha Byte notification endpoint after its connection closed during verification.
 - [x] Make the Android back button navigate within Alpha Byte first, then ask for exit confirmation only at the root screen.
+- [x] Repair chat-history scrolling so viewing older messages never forces the user back to the latest message.
+- [x] Make notifications quiet while the recipient is actively using Alpha Byte and retain alerts only for inactive/background sessions.
+- [ ] Add a continuously animated verification badge for eligible profiles without fabricating verification status.
+- [ ] Add encrypted profile photos and professional group creation and management controls.
+- [ ] Add reply-to-message, typing indicators, and rich media/video attachment support.
+- [ ] Implement admin-issued subscription codes with controlled duration and user redemption flow.
+- [ ] Diagnose and repair the video-send failure shown in the supplied recording.

@@ -15,6 +15,8 @@ import {
   Square,
   Timer,
   Trash2,
+  Reply,
+  Video,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -64,6 +66,7 @@ interface Row {
   expires_at: string | null;
   delivered_at: string | null;
   read_at: string | null;
+  reply_to: string | null;
 }
 
 const TTL_OPTIONS = [0, 10, 60, 3600, 86400, 604800];
@@ -141,16 +144,19 @@ function AttachmentPreview({ descriptor }: { descriptor: AttachmentDescriptor })
       </div>
     );
   }
+  if (descriptor.kind === "video" && url) {
+    return <video src={url} controls playsInline className="max-h-72 w-full rounded-xl bg-black" />;
+  }
 
   return (
     <div className="flex min-w-44 items-center gap-2">
-      {descriptor.kind === "image" ? <ImageIcon className="h-5 w-5" /> : descriptor.kind === "audio" ? <Play className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+      {descriptor.kind === "image" ? <ImageIcon className="h-5 w-5" /> : descriptor.kind === "audio" ? <Play className="h-5 w-5" /> : descriptor.kind === "video" ? <Video className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
       <span className="min-w-0 flex-1 truncate text-xs">{descriptor.name}</span>
           {url ? (
         <a href={url} download={descriptor.name} className="rounded-full p-1" aria-label="تنزيل المرفق"><Download className="h-4 w-4" /></a>
           ) : (
         <button type="button" onClick={() => void openAttachment()} disabled={loading} className="rounded-full p-1" aria-label={descriptor.kind === "audio" ? "تشغيل الرسالة الصوتية" : "فتح المرفق"}>
-          {loading ? <span className="text-xs">…</span> : descriptor.kind === "audio" ? <Play className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+          {loading ? <span className="text-xs">…</span> : descriptor.kind === "audio" || descriptor.kind === "video" ? <Play className="h-4 w-4" /> : <Download className="h-4 w-4" />}
         </button>
       )}
     </div>
@@ -175,10 +181,17 @@ function ChatPage() {
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [clock, setClock] = useState(Date.now());
+  const [replyTo, setReplyTo] = useState<Row | null>(null);
+  const [typingName, setTypingName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimer = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingStopTimerRef = useRef<number | null>(null);
+  const remoteTypingTimerRef = useRef<number | null>(null);
+  const wasAtBottomRef = useRef(true);
+  const lastVisibleCountRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,7 +220,7 @@ function ChatPage() {
     if (!userId) return;
     let active = true;
     async function load() {
-      const { data } = await supabase.from("messages").select("id, sender_id, encrypted_payload, iv, kind, created_at, expires_at, delivered_at, read_at").eq("conversation_id", id).order("created_at", { ascending: true });
+      const { data } = await supabase.from("messages").select("id, sender_id, encrypted_payload, iv, kind, created_at, expires_at, delivered_at, read_at, reply_to").eq("conversation_id", id).order("created_at", { ascending: true });
       const nextRows = (data as Row[] | null) ?? [];
       if (active) setRows(nextRows);
       const unreadIds = nextRows.filter((message) => message.sender_id !== userId && !message.read_at).map((message) => message.id);
@@ -226,6 +239,26 @@ function ChatPage() {
   }, [id, userId]);
 
   useEffect(() => {
+    if (!userId) return;
+    const channel = supabase.channel(`typing:${id}`).on("broadcast", { event: "typing" }, ({ payload }) => {
+      if (payload?.userId === userId) return;
+      if (!payload?.active) {
+        setTypingName(null);
+        return;
+      }
+      setTypingName(peer?.display_name || peer?.username || "الطرف الآخر");
+      if (remoteTypingTimerRef.current) window.clearTimeout(remoteTypingTimerRef.current);
+      remoteTypingTimerRef.current = window.setTimeout(() => setTypingName(null), 2500);
+    }).subscribe();
+    typingChannelRef.current = channel;
+    return () => {
+      typingChannelRef.current = null;
+      if (remoteTypingTimerRef.current) window.clearTimeout(remoteTypingTimerRef.current);
+      void supabase.removeChannel(channel);
+    };
+  }, [id, peer?.display_name, peer?.username, userId]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -237,16 +270,34 @@ function ChatPage() {
     let cancelled = false;
     void (async () => {
       const next: Record<string, string> = {};
-      for (const row of visible) {
+      for (const row of rows) {
         try { next[row.id] = await decryptWithKey(key, { ciphertext: row.encrypted_payload, iv: row.iv }); }
         catch { next[row.id] = t("chat.decryptFailed"); }
       }
       if (!cancelled) setPlain(next);
     })();
     return () => { cancelled = true; };
-  }, [key, visible, t]);
+  }, [key, rows, t]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [plain, visible.length]);
+  useEffect(() => {
+    const previousCount = lastVisibleCountRef.current;
+    const hasNewMessage = visible.length > previousCount;
+    if (visible.length && (previousCount === 0 || (hasNewMessage && wasAtBottomRef.current))) {
+      bottomRef.current?.scrollIntoView({ behavior: previousCount === 0 ? "auto" : "smooth", block: "end" });
+    }
+    lastVisibleCountRef.current = visible.length;
+  }, [visible.length]);
+
+  function publishTyping(active: boolean) {
+    if (!userId) return;
+    void typingChannelRef.current?.send({ type: "broadcast", event: "typing", data: { userId, active } });
+    if (!active) {
+      if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+      return;
+    }
+    if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = window.setTimeout(() => publishTyping(false), 1800);
+  }
 
   async function insertEncrypted(plaintext: string, kind: string) {
     if (!key) throw new Error("KEY_UNAVAILABLE");
@@ -257,10 +308,11 @@ function ChatPage() {
       encrypted_payload: payload.ciphertext,
       iv: payload.iv,
       kind,
+      reply_to: replyTo?.id ?? null,
       expires_at: ttl > 0 ? new Date(Date.now() + ttl * 1000).toISOString() : null,
     }).select("id").single();
     if (error) throw error;
-    if (data?.id && session?.access_token) void notifyPeerOfNewMessage(session.access_token, data.id);
+    if (data?.id && session?.access_token) void notifyPeerOfNewMessage(session.access_token, data.id).catch(() => undefined);
   }
 
   async function send(event: React.FormEvent) {
@@ -276,6 +328,8 @@ function ChatPage() {
         await insertEncrypted(draft.trim(), "text");
         setDraft("");
       }
+      setReplyTo(null);
+      publishTyping(false);
     } catch (error) {
       console.error(error);
       toast.error("تعذر إرسال المرفق أو الرسالة. تأكد من اتصالك ومن إعداد التخزين.");
@@ -335,7 +389,7 @@ function ChatPage() {
 
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground"><Timer className="h-3.5 w-3.5" /><span className="whitespace-nowrap">{t("chat.disappearing")}</span><Select value={String(ttl)} onValueChange={(value) => void updateTtl(Number(value))}><SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger><SelectContent>{TTL_OPTIONS.map((option) => <SelectItem key={option} value={String(option)}>{ttlLabel(option, t)}</SelectItem>)}</SelectContent></Select></div>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4">
+      <div onScroll={(event) => { const element = event.currentTarget; wasAtBottomRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 72; }} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4">
         {!key && <p className="rounded-2xl border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">{t("chat.decryptFailed")}</p>}
         {visible.map((row) => {
           const mine = row.sender_id === userId;
@@ -344,23 +398,27 @@ function ChatPage() {
             const parsed: unknown = JSON.parse(plain[row.id] ?? "");
             if (isAttachmentDescriptor(parsed)) descriptor = parsed;
           } catch { /* A text message is not JSON. */ }
-          return <div key={row.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div className={cn("group max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm", mine ? "brand-bg text-primary-foreground" : "border border-border glass")}>
+          const repliedRow = row.reply_to ? rows.find((item) => item.id === row.reply_to) : null;
+          return <div key={row.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div id={`message-${row.id}`} className={cn("group max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm", mine ? "brand-bg text-primary-foreground" : "border border-border glass")}>
+            {repliedRow && <button type="button" onClick={() => document.getElementById(`message-${repliedRow.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })} className="mb-2 block w-full border-s-2 border-current/60 ps-2 text-start text-[11px] opacity-75"><span className="block font-semibold">رد على رسالة</span><span className="block truncate">{plain[repliedRow.id] ?? "…"}</span></button>}
             {descriptor ? <AttachmentPreview descriptor={descriptor} /> : <p className="whitespace-pre-wrap break-words">{plain[row.id] ?? "…"}</p>}
-            <div className="mt-1 flex items-center gap-2 text-[10px] opacity-70"><span>{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{row.expires_at && <Timer className="h-3 w-3" />}{mine && (row.read_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تمت القراءة" /> : row.delivered_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تم التسليم" /> : <Check className="h-3.5 w-3.5" aria-label="تم الإرسال" />)}{mine && <button type="button" onClick={() => void removeMessage(row.id)} aria-label={t("chat.delete")}><Trash2 className="h-3 w-3" /></button>}</div>
+            <div className="mt-1 flex items-center gap-2 text-[10px] opacity-70"><span>{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{row.expires_at && <Timer className="h-3 w-3" />}{mine && (row.read_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تمت القراءة" /> : row.delivered_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تم التسليم" /> : <Check className="h-3.5 w-3.5" aria-label="تم الإرسال" />)}<button type="button" onClick={() => setReplyTo(row)} aria-label="رد على الرسالة"><Reply className="h-3 w-3" /></button>{mine && <button type="button" onClick={() => void removeMessage(row.id)} aria-label={t("chat.delete")}><Trash2 className="h-3 w-3" /></button>}</div>
           </div></div>;
         })}
+        {typingName && <p className="px-1 text-xs text-muted-foreground"><span className="me-1 inline-flex gap-0.5 align-middle"><i className="h-1 w-1 animate-bounce rounded-full bg-primary [animation-delay:-.2s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-primary [animation-delay:-.1s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-primary" /></span>{typingName} يكتب</p>}
         {rows.length > visible.length && <p className="py-2 text-center text-xs text-muted-foreground">تم إخفاء الرسائل المنتهية.</p>}
         <div ref={bottomRef} />
       </div>
 
       <form onSubmit={send} className="shrink-0 border-t border-border glass px-4 py-3 safe-bottom">
+        {replyTo && <div className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 text-xs"><Reply className="h-4 w-4 text-primary" /><span className="min-w-0 flex-1 truncate">{plain[replyTo.id] ?? "رد على رسالة"}</span><button type="button" onClick={() => setReplyTo(null)} aria-label="إلغاء الرد"><X className="h-4 w-4" /></button></div>}
         {pendingFile && <div className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 text-xs"><FileText className="h-4 w-4 text-primary" /><span className="min-w-0 flex-1 truncate">{pendingFile.name}</span><button type="button" onClick={() => setPendingFile(null)} aria-label="إزالة المرفق"><X className="h-4 w-4" /></button></div>}
         {recording && <div className="mb-2 flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />جارٍ تسجيل الصوت {recordingSeconds}s</div>}
         <div className="flex gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" accept="image/*,audio/*,.pdf,.txt,.doc,.docx,.zip" onChange={(event) => { const file = event.target.files?.[0]; if (file) setPendingFile(file); event.currentTarget.value = ""; }} />
+          <input ref={fileInputRef} type="file" className="hidden" accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.zip" onChange={(event) => { const file = event.target.files?.[0]; if (file) setPendingFile(file); event.currentTarget.value = ""; }} />
           <Button type="button" size="icon" variant="outline" className="press" disabled={!key || sending} onClick={() => fileInputRef.current?.click()} aria-label="إرفاق صورة أو ملف"><Paperclip className="h-4 w-4" /></Button>
           <Button type="button" size="icon" variant={recording ? "destructive" : "outline"} className="press" disabled={!key || sending} onClick={() => void toggleRecording()} aria-label={recording ? "إيقاف التسجيل" : "تسجيل صوتي"}>{recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}</Button>
-          <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={pendingFile ? "أضف تعليقًا لاحقًا" : t("chat.placeholder")} disabled={!key || sending || Boolean(pendingFile)} />
+          <Input value={draft} onChange={(event) => { setDraft(event.target.value); publishTyping(Boolean(event.target.value.trim())); }} placeholder={pendingFile ? "أضف تعليقًا لاحقًا" : t("chat.placeholder")} disabled={!key || sending || Boolean(pendingFile)} />
           <Button type="submit" size="icon" className="press" disabled={sending || (!draft.trim() && !pendingFile) || !key}><Send className="h-4 w-4" /></Button>
         </div>
       </form>

@@ -355,6 +355,25 @@
   animation: ab-pulse-ring 2s ease-out infinite;
 }
 
+@keyframes ab-verified-glow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgb(37 99 235 / 0)); transform: scale(1); }
+  45% { filter: drop-shadow(0 0 5px rgb(37 99 235 / .9)); transform: scale(1.08); }
+  68% { filter: drop-shadow(0 0 10px rgb(147 197 253 / .9)); transform: scale(0.98); }
+}
+
+.ab-verified-mark {
+  display: inline-flex;
+  flex: none;
+  height: 1.05em;
+  width: 1.05em;
+  color: #2563eb;
+  animation: ab-verified-glow 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ab-verified-mark { animation: none; }
+}
+
 .activation-shell, .splash-shell { background: #080808; color: #fafafa; }
 .activation-card { border: 1px solid #3f3f46; border-radius: 2.5rem; background: linear-gradient(155deg, #171717, #0a0a0a); box-shadow: 0 28px 80px rgb(0 0 0 / .55); }
 .activation-label input { height: 3.75rem; border-color: #71717a; background: #09090b; color: #fff; font-size: 1.05rem; }
