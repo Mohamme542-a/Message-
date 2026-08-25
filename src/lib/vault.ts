@@ -139,7 +139,8 @@ export interface LocalSettings {
   emergencyWipeOnPanic: boolean;
   language: "ar" | "en";
   theme: "dark" | "light" | "system";
-  accentColor: "aqua" | "violet" | "rose" | "amber";
+  themePreferenceSet: boolean;
+  accentColor: "black" | "blue" | "green" | "amber";
   failedUnlockAttempts: number;
 }
 
@@ -149,13 +150,23 @@ export const defaultSettings: LocalSettings = {
   blockScreenshots: true,
   emergencyWipeOnPanic: false,
   language: "ar",
-  theme: "dark",
-  accentColor: "aqua",
+  theme: "light",
+  themePreferenceSet: false,
+  accentColor: "black",
   failedUnlockAttempts: 0,
 };
 
 export function loadSettings(): LocalSettings {
-  return { ...defaultSettings, ...(read<Partial<LocalSettings>>(SETTINGS_KEY) ?? {}) };
+  const saved = read<Partial<LocalSettings>>(SETTINGS_KEY) ?? {};
+  const accent = ["black", "blue", "green", "amber"].includes(String(saved.accentColor))
+    ? saved.accentColor as LocalSettings["accentColor"]
+    : defaultSettings.accentColor;
+  return {
+    ...defaultSettings,
+    ...saved,
+    theme: saved.themePreferenceSet ? saved.theme ?? defaultSettings.theme : "light",
+    accentColor: accent,
+  };
 }
 
 export function saveSettings(settings: LocalSettings): void {

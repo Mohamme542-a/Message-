@@ -247,7 +247,7 @@ function SettingsPage() {
             <KeyRound className="mt-0.5 h-4 w-4 text-primary" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">مفتاح استعادة الرسائل</p>
-              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">أنشئ مفتاحًا تحفظه خارج الهاتف. النسخة المحفوظة على الخادم مشفرة به ولا يمكن فتحها من دونه.</p>
+              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">احتفظ به في مكان آمن.</p>
             </div>
           </div>
           {recoveryCode ? (
@@ -301,9 +301,9 @@ function SettingsPage() {
         <p className="mb-2 mt-5 flex items-center gap-2 text-xs font-semibold"><Palette className="h-3.5 w-3.5" />لون التطبيق</p>
         <div className="grid grid-cols-4 gap-2">
           {[
-            { value: "aqua" as const, label: "فيروزي", color: "bg-cyan-400" },
-            { value: "violet" as const, label: "بنفسجي", color: "bg-violet-500" },
-            { value: "rose" as const, label: "وردي", color: "bg-rose-500" },
+            { value: "black" as const, label: "أسود", color: "bg-zinc-900" },
+            { value: "blue" as const, label: "أزرق", color: "bg-blue-600" },
+            { value: "green" as const, label: "أخضر", color: "bg-emerald-600" },
             { value: "amber" as const, label: "كهرماني", color: "bg-amber-400" },
           ].map((option) => <button key={option.value} type="button" onClick={() => updateSettings({ accentColor: option.value })} className={`rounded-2xl border p-2 text-center text-[10px] press ${settings.accentColor === option.value ? "border-primary ring-2 ring-primary/30" : "border-border"}`}><span className={`mx-auto mb-1 block h-5 w-5 rounded-full ${option.color}`} />{option.label}</button>)}
         </div>

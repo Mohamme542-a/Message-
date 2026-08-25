@@ -160,3 +160,8 @@
 - [x] Diagnose and repair Android notification visibility, including runtime permission, notification channel, and foreground display behavior.
 - [x] Add a clear encrypted-message key backup and restore entry point that never uploads the user key.
 - [x] Apply the encrypted recovery-backup column migration in Lovable before enabling new-device restoration.
+- [x] Remove technical, platform, and encryption-explanation copy from visible Alpha Byte screens and empty states.
+- [x] Make light mode the default for new installations while retaining an explicit user-controlled dark-mode option.
+- [x] Repair native microphone permission and audio-recording startup for Android.
+- [x] Ensure selected accent colors visibly affect the interface without reintroducing unwanted purple defaults.
+- [x] Add sent, delivered, and read indicators to messages with an appropriate data model and live updates.

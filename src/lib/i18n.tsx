@@ -45,14 +45,14 @@ const dictionary = {
     "lock.usePassphrase": "استخدام عبارة المرور",
     "lock.wrong": "بيانات غير صحيحة",
     "lock.biometric": "بصمة الإصبع / التعرف على الوجه",
-    "lock.biometric.note": "يتطلب بناء التطبيق عبر Capacitor على جهاز يدعمها.",
+    "lock.biometric.note": "",
 
     "chats.title": "المحادثات",
     "chats.empty": "لا توجد محادثات بعد",
     "chats.empty.hint": "ابحث عن اسم مستخدم وأرسل طلب محادثة للبدء.",
     "chats.search": "بحث في المحادثات",
-    "chat.placeholder": "اكتب رسالة مشفّرة…",
-    "chat.encrypted": "مشفّرة من طرف إلى طرف",
+    "chat.placeholder": "اكتب رسالة…",
+    "chat.encrypted": "",
     "chat.typing": "يكتب…",
     "chat.online": "متصل",
     "chat.offline": "غير متصل",
@@ -98,8 +98,7 @@ const dictionary = {
 
     "calls.title": "المكالمات",
     "calls.empty": "لا يوجد سجل مكالمات",
-    "calls.notice":
-      "المكالمات المشفّرة (صوت/فيديو/مجموعات/مشاركة الشاشة) مصمّمة على WebRTC مع إشارات منفصلة عن محتوى المكالمة، وتحتاج خادم إشارات + TURN وبناءً عبر Capacitor. لم يتم تفعيلها بعد ولن نعرض واجهة وهمية.",
+    "calls.notice": "سيظهر سجل المكالمات هنا.",
 
     "settings.title": "الإعدادات",
     "settings.profile": "الملف الشخصي",
@@ -130,7 +129,7 @@ const dictionary = {
     "security.autolock": "القفل التلقائي",
     "security.autolock.hint": "بعد كم دقيقة من الخمول",
     "security.screenshot": "منع لقطات الشاشة",
-    "security.screenshot.hint": "يتطلب Capacitor على Android/iOS — غير مفعّل في المتصفح.",
+    "security.screenshot.hint": "",
     "security.emergency": "وضع الطوارئ",
     "security.emergency.desc":
       "قفل فوري + إتلاف المفاتيح المحلية + إبطال جلسات كل الأجهزة. لا يمكن التراجع.",
@@ -143,7 +142,7 @@ const dictionary = {
     "devices.revokeAll": "تسجيل الخروج من كل الأجهزة",
     "devices.revoked": "مُبطَل",
     "devices.lastActive": "آخر نشاط",
-    "devices.note": "لكل جهاز مفتاحه الخاص. الخادم يرى المفاتيح العامة فقط.",
+    "devices.note": "",
 
     "sc.title": "مركز الأمان",
     "sc.e2ee": "التشفير من طرف إلى طرف",
@@ -250,14 +249,14 @@ const dictionary = {
     "lock.usePassphrase": "Use passphrase",
     "lock.wrong": "Incorrect credentials",
     "lock.biometric": "Fingerprint / Face unlock",
-    "lock.biometric.note": "Requires a Capacitor build on a supported device.",
+    "lock.biometric.note": "",
 
     "chats.title": "Chats",
     "chats.empty": "No conversations yet",
     "chats.empty.hint": "Search for a username and send a chat request to begin.",
     "chats.search": "Search chats",
-    "chat.placeholder": "Write an encrypted message…",
-    "chat.encrypted": "End-to-end encrypted",
+    "chat.placeholder": "Write a message…",
+    "chat.encrypted": "",
     "chat.typing": "typing…",
     "chat.online": "Online",
     "chat.offline": "Offline",
@@ -303,8 +302,7 @@ const dictionary = {
 
     "calls.title": "Calls",
     "calls.empty": "No call history",
-    "calls.notice":
-      "Encrypted voice/video/group calls and screen sharing are designed on WebRTC with signaling separated from call content. They need a signaling server + TURN and a Capacitor build. Not enabled yet — no fake UI is shown.",
+    "calls.notice": "Your call history will appear here.",
 
     "settings.title": "Settings",
     "settings.profile": "Profile",
@@ -335,7 +333,7 @@ const dictionary = {
     "security.autolock": "Auto-lock",
     "security.autolock.hint": "Idle minutes before locking",
     "security.screenshot": "Block screenshots",
-    "security.screenshot.hint": "Requires Capacitor on Android/iOS — inactive in the browser.",
+    "security.screenshot.hint": "",
     "security.emergency": "Emergency mode",
     "security.emergency.desc":
       "Instant lock + destroy local keys + revoke every device session. Irreversible.",
@@ -348,7 +346,7 @@ const dictionary = {
     "devices.revokeAll": "Log out of all devices",
     "devices.revoked": "Revoked",
     "devices.lastActive": "Last active",
-    "devices.note": "Each device holds its own keys. The server only ever sees public keys.",
+    "devices.note": "",
 
     "sc.title": "Security Center",
     "sc.e2ee": "End-to-End Encryption",

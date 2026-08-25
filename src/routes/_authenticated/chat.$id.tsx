@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
+  Check,
+  CheckCheck,
   Download,
   FileText,
   Image as ImageIcon,
-  Lock,
   Mic,
   Paperclip,
   Pause,
@@ -36,6 +37,7 @@ import {
   type AttachmentDescriptor,
 } from "@/lib/attachments";
 import { decryptWithKey, deriveConversationKey, encryptWithKey } from "@/lib/crypto";
+import { beginVoiceCapture } from "@/lib/microphone";
 import { useI18n } from "@/lib/i18n";
 import { notifyPeerOfNewMessage } from "@/lib/push-notifications";
 import { useSession } from "@/lib/session";
@@ -60,6 +62,8 @@ interface Row {
   kind: string;
   created_at: string;
   expires_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
 }
 
 const TTL_OPTIONS = [0, 10, 60, 3600, 86400, 604800];
@@ -203,8 +207,14 @@ function ChatPage() {
     if (!userId) return;
     let active = true;
     async function load() {
-      const { data } = await supabase.from("messages").select("id, sender_id, encrypted_payload, iv, kind, created_at, expires_at").eq("conversation_id", id).order("created_at", { ascending: true });
-      if (active) setRows((data as Row[] | null) ?? []);
+      const { data } = await supabase.from("messages").select("id, sender_id, encrypted_payload, iv, kind, created_at, expires_at, delivered_at, read_at").eq("conversation_id", id).order("created_at", { ascending: true });
+      const nextRows = (data as Row[] | null) ?? [];
+      if (active) setRows(nextRows);
+      const unreadIds = nextRows.filter((message) => message.sender_id !== userId && !message.read_at).map((message) => message.id);
+      if (unreadIds.length) {
+        const now = new Date().toISOString();
+        await supabase.from("messages").update({ delivered_at: now, read_at: now }).in("id", unreadIds);
+      }
     }
     void load();
     const channel = supabase.channel(`messages:${id}`).on(
@@ -289,9 +299,10 @@ function ChatPage() {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await beginVoiceCapture();
       const chunks: BlobPart[] = [];
-      const recorder = new MediaRecorder(stream);
+      const preferredType = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = preferredType ? new MediaRecorder(stream, { mimeType: preferredType }) : new MediaRecorder(stream);
       recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
@@ -307,8 +318,9 @@ function ChatPage() {
       setRecording(true);
       setRecordingSeconds(0);
       recordingTimer.current = window.setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000);
-    } catch {
-      toast.error("لم يُمنح إذن الميكروفون أو تعذر بدء التسجيل.");
+    } catch (error) {
+      console.error(error);
+      toast.error("اسمح للميكروفون من إعدادات الهاتف ثم أعد المحاولة.");
     }
   }
 
@@ -317,7 +329,7 @@ function ChatPage() {
       <header className="safe-top z-30 flex shrink-0 items-center gap-3 border-b border-border glass px-4 py-3">
         <Link to="/chats" className="rounded-full p-1.5 text-muted-foreground press"><ArrowRight className="h-5 w-5" /></Link>
         <span className="flex h-9 w-9 items-center justify-center rounded-2xl brand-bg text-xs font-bold text-primary-foreground">{(peer?.display_name || peer?.username || "?").slice(0, 2).toUpperCase()}</span>
-        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{peer?.display_name || peer?.username || "—"}</p><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Lock className="h-3 w-3" />{t("chat.encrypted")}</p></div>
+        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{peer?.display_name || peer?.username || "—"}</p></div>
         <Link to="/security/$id" params={{ id }} className="rounded-full p-1.5 text-primary press" aria-label={t("chat.security")}><ShieldCheck className="h-5 w-5" /></Link>
       </header>
 
@@ -334,7 +346,7 @@ function ChatPage() {
           } catch { /* A text message is not JSON. */ }
           return <div key={row.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div className={cn("group max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm", mine ? "brand-bg text-primary-foreground" : "border border-border glass")}>
             {descriptor ? <AttachmentPreview descriptor={descriptor} /> : <p className="whitespace-pre-wrap break-words">{plain[row.id] ?? "…"}</p>}
-            <div className="mt-1 flex items-center gap-2 text-[10px] opacity-70"><span>{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{row.expires_at && <Timer className="h-3 w-3" />}{mine && <button type="button" onClick={() => void removeMessage(row.id)} aria-label={t("chat.delete")}><Trash2 className="h-3 w-3" /></button>}</div>
+            <div className="mt-1 flex items-center gap-2 text-[10px] opacity-70"><span>{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{row.expires_at && <Timer className="h-3 w-3" />}{mine && (row.read_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تمت القراءة" /> : row.delivered_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تم التسليم" /> : <Check className="h-3.5 w-3.5" aria-label="تم الإرسال" />)}{mine && <button type="button" onClick={() => void removeMessage(row.id)} aria-label={t("chat.delete")}><Trash2 className="h-3 w-3" /></button>}</div>
           </div></div>;
         })}
         {rows.length > visible.length && <p className="py-2 text-center text-xs text-muted-foreground">تم إخفاء الرسائل المنتهية.</p>}

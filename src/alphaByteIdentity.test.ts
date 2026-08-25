@@ -49,7 +49,7 @@ describe("Alpha Byte imported-project identity", () => {
   });
 
   it("keeps requested messaging enhancements encrypted, recoverable, and natively visible", async () => {
-    const [attachments, chat, push, settings, vault, migration, recoveryMigration, activation, nativeActivity] = await Promise.all([
+    const [attachments, chat, push, settings, vault, migration, recoveryMigration, activation, nativeActivity, i18n, microphone, session] = await Promise.all([
       readFile(path.join(root, "lib/attachments.ts"), "utf8"),
       readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
       readFile(path.join(root, "lib/push-notifications.ts"), "utf8"),
@@ -59,6 +59,9 @@ describe("Alpha Byte imported-project identity", () => {
       readFile(path.join(root, "..", "supabase/migrations/20260825103000_add_encrypted_recovery_backup.sql"), "utf8"),
       readFile(path.join(root, "components/ActivationGate.tsx"), "utf8"),
       readFile(path.join(root, "..", "android/app/src/main/java/Com/qarfash/MainActivity.java"), "utf8"),
+      readFile(path.join(root, "lib/i18n.tsx"), "utf8"),
+      readFile(path.join(root, "lib/microphone.ts"), "utf8"),
+      readFile(path.join(root, "lib/session.tsx"), "utf8"),
     ]);
     expect(attachments).toContain("encryptFile");
     expect(attachments).toContain("encrypted-attachments");
@@ -67,6 +70,8 @@ describe("Alpha Byte imported-project identity", () => {
     expect(chat).toContain("setClock");
     expect(chat).toContain("audio.play()");
     expect(chat).toContain("إيقاف");
+    expect(chat).toContain("delivered_at");
+    expect(chat).toContain("read_at");
     expect(push).toContain("PushNotifications.requestPermissions");
     expect(push).toContain("LocalNotifications.createChannel");
     expect(push).toContain("alpha_byte_messages");
@@ -80,5 +85,11 @@ describe("Alpha Byte imported-project identity", () => {
     expect(recoveryMigration).toContain("recovery_backup");
     expect(activation).toContain("activation-card");
     expect(nativeActivity).toContain("NotificationManager.IMPORTANCE_HIGH");
+    expect(i18n).not.toContain("TURN");
+    expect(i18n).not.toContain("Capacitor build");
+    expect(microphone).toContain("beginVoiceCapture");
+    expect(microphone).toContain("getUserMedia");
+    expect(vault).toContain('theme: "light"');
+    expect(session).toContain("themePreferenceSet");
   });
 });

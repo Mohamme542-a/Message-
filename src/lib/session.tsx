@@ -82,7 +82,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const updateSettings = useCallback((patch: Partial<LocalSettings>) => {
     setSettings((prev) => {
-      const next = { ...prev, ...patch };
+      const next = { ...prev, ...patch, ...(patch.theme ? { themePreferenceSet: true } : {}) };
       saveSettings(next);
       return next;
     });
