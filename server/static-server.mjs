@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,6 +7,9 @@ import { fileURLToPath } from "node:url";
 const runtimeDirectory = path.dirname(fileURLToPath(import.meta.url));
 const publicDirectory = path.resolve(runtimeDirectory, "public");
 const port = Number(process.env.PORT || 3000);
+const activationCode = process.env.AB_ACTIVATION_CODE || "";
+const activationSigningKey = process.env.JWT_SECRET || activationCode;
+const activationLifetimeMs = 1000 * 60 * 60 * 24 * 30;
 
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -34,6 +38,93 @@ function resolveStaticFile(pathname) {
   return isInsidePublicDirectory(candidate) ? candidate : null;
 }
 
+function writeJson(response, status, body) {
+  response.writeHead(status, {
+    "Access-Control-Allow-Headers": "Content-Type, X-Alpha-Activation-Token",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json; charset=utf-8",
+    "X-Content-Type-Options": "nosniff",
+  });
+  response.end(JSON.stringify(body));
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 4096) throw new Error("REQUEST_TOO_LARGE");
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+function signActivationPayload(payload) {
+  return createHmac("sha256", activationSigningKey).update(payload).digest("base64url");
+}
+
+function issueActivationToken() {
+  const payload = Buffer.from(JSON.stringify({
+    expiresAt: Date.now() + activationLifetimeMs,
+    nonce: randomBytes(16).toString("hex"),
+  })).toString("base64url");
+  return `${payload}.${signActivationPayload(payload)}`;
+}
+
+function isActivationTokenValid(token) {
+  if (!activationSigningKey || typeof token !== "string") return false;
+  const [payload, suppliedSignature] = token.split(".");
+  if (!payload || !suppliedSignature) return false;
+  const supplied = Buffer.from(suppliedSignature);
+  const expected = Buffer.from(signActivationPayload(payload));
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return typeof decoded.expiresAt === "number" && decoded.expiresAt > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function isActivationCodeValid(code) {
+  if (!activationCode || typeof code !== "string") return false;
+  const submitted = Buffer.from(code.trim());
+  const expected = Buffer.from(activationCode);
+  return submitted.length === expected.length && timingSafeEqual(submitted, expected);
+}
+
+async function handleActivationRequest(request, response, pathname) {
+  if (request.method === "OPTIONS") {
+    writeJson(response, 204, {});
+    return true;
+  }
+  if (request.method !== "POST") {
+    writeJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return true;
+  }
+  if (pathname === "/api/activation/verify") {
+    try {
+      const body = await readJsonBody(request);
+      if (!isActivationCodeValid(body?.code)) {
+        writeJson(response, 403, { ok: false, error: "INVALID_ACTIVATION_CODE" });
+        return true;
+      }
+      writeJson(response, 200, { ok: true, token: issueActivationToken() });
+    } catch {
+      writeJson(response, 400, { ok: false, error: "INVALID_REQUEST" });
+    }
+    return true;
+  }
+  if (pathname === "/api/activation/status") {
+    const valid = isActivationTokenValid(request.headers["x-alpha-activation-token"]);
+    writeJson(response, valid ? 200 : 401, { ok: valid });
+    return true;
+  }
+  return false;
+}
+
 async function sendFile(response, filePath, method) {
   const extension = path.extname(filePath).toLowerCase();
   const isHashedAsset = filePath.includes(`${path.sep}assets${path.sep}`);
@@ -50,6 +141,12 @@ async function sendFile(response, filePath, method) {
 
 const server = createServer(async (request, response) => {
   const method = request.method || "GET";
+  const pathname = (request.url || "/").split("?", 1)[0] || "/";
+
+  if (pathname.startsWith("/api/activation/")) {
+    await handleActivationRequest(request, response, pathname);
+    return;
+  }
 
   if (method !== "GET" && method !== "HEAD") {
     response.writeHead(405, { Allow: "GET, HEAD" });
@@ -58,7 +155,6 @@ const server = createServer(async (request, response) => {
   }
 
   try {
-    const pathname = (request.url || "/").split("?", 1)[0] || "/";
     const staticFile = resolveStaticFile(pathname);
 
     if (!staticFile) {

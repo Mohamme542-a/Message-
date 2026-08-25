@@ -13,6 +13,8 @@ import { useSession } from "@/lib/session";
 import { USERNAME_RE, getConfig, usernameToEmail } from "@/lib/ab-api";
 import { generateIdentityKeyPair, generateRecoveryCode } from "@/lib/crypto";
 import { createVault, vaultExists, type VaultContents } from "@/lib/vault";
+import { validateActivation } from "@/lib/activation";
+import { ActivationGate } from "@/components/ActivationGate";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -43,9 +45,16 @@ function AuthPage() {
   const [recovery, setRecovery] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [activationReady, setActivationReady] = useState(false);
 
   useEffect(() => {
     getConfig<boolean>("registration_open", true).then(setRegistrationOpen).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    validateActivation().then((active) => {
+      if (active) setActivationReady(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -158,6 +167,8 @@ function AuthPage() {
       setBusy(false);
     }
   }
+
+  if (!activationReady) return <ActivationGate onActivated={() => setActivationReady(true)} />;
 
   if (recovery) {
     return (

@@ -139,3 +139,7 @@
 - [x] Fix the deployment asset contract so the client build produces the required dist/public payload before the platform upload step.
 - [x] Generate a secure static-server entry at dist/index.js that binds to the platform port and serves SPA routes.
 - [x] Verify the repaired build output, save a checkpoint, and confirm the resulting deployment state.
+- [x] Diagnose and repair the APK activation-code request that currently reports an incomplete-request error.
+- [x] Add a secure server-verified activation-code gate to the current Supabase application before account access.
+- [x] Recreate the requested Alpha Byte cover and login presentation for the new APK without reusing legacy secrets or binaries.
+- [x] Build and verify a new Android APK that uses the current Supabase authentication flow and activation gate.

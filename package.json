@@ -7,6 +7,8 @@
     "dev": "vite dev",
     "build": "vite build && node scripts/prepare-deployment-runtime.mjs",
     "build:dev": "vite build --mode development",
+    "android:sync": "pnpm build && cap sync android",
+    "android:debug": "pnpm build && cap sync android && cd android && ./gradlew assembleDebug",
     "preview": "vite preview",
     "check": "tsc --noEmit",
     "test": "vitest run",
@@ -17,6 +19,8 @@
     "rolldown": "1.2.1"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -72,6 +76,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^2.15.0",
     "@types/node": "^22.16.5",

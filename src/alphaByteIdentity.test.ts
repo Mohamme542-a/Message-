@@ -7,15 +7,20 @@ const root = import.meta.dirname;
 
 describe("Alpha Byte imported-project identity", () => {
   it("uses Alpha Byte on exterior screens while retaining the supplied Supabase client", async () => {
-    const [rootRoute, splash, auth, client] = await Promise.all([
+    const [rootRoute, splash, auth, activation, runtime, client] = await Promise.all([
       readFile(path.join(root, "routes/__root.tsx"), "utf8"),
       readFile(path.join(root, "routes/index.tsx"), "utf8"),
       readFile(path.join(root, "routes/auth.tsx"), "utf8"),
+      readFile(path.join(root, "components/ActivationGate.tsx"), "utf8"),
+      readFile(path.join(root, "..", "server/static-server.mjs"), "utf8"),
       readFile(path.join(root, "integrations/supabase/client.ts"), "utf8"),
     ]);
     expect(rootRoute).toContain("Alpha Byte");
     expect(splash).toContain("alpha-byte-cover");
     expect(auth).toContain("alpha-byte-cover");
+    expect(activation).toContain("رمز التفعيل");
+    expect(runtime).toContain("process.env.AB_ACTIVATION_CODE");
+    expect(runtime).not.toContain("AB_ACTIVATION_CODE =");
     expect(client).toContain("VITE_SUPABASE_URL");
     expect(client).toContain("VITE_SUPABASE_PUBLISHABLE_KEY");
     expect(client).not.toContain("service_role");
