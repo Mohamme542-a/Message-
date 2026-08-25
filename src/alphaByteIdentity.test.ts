@@ -105,7 +105,7 @@ describe("Alpha Byte imported-project identity", () => {
   });
 
   it("keeps professional community, subscription, and quiet-notification features within their intended boundaries", async () => {
-    const [chat, attachments, push, groups, groupCrypto, groupRoute, verifiedBadge, subscriptions, admin, settings, migration, viteConfig] = await Promise.all([
+    const [chat, attachments, push, groups, groupCrypto, groupRoute, verifiedBadge, subscriptions, admin, settings, migration, viteConfig, packageJson, androidBuild, authenticatedShell] = await Promise.all([
       readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
       readFile(path.join(root, "lib/attachments.ts"), "utf8"),
       readFile(path.join(root, "lib/push-notifications.ts"), "utf8"),
@@ -118,6 +118,9 @@ describe("Alpha Byte imported-project identity", () => {
       readFile(path.join(root, "routes/_authenticated/settings.tsx"), "utf8"),
       readFile(path.join(root, "..", "supabase/migrations/20260825180000_community_and_subscription_features.sql"), "utf8"),
       readFile(path.join(root, "..", "vite.config.ts"), "utf8"),
+      readFile(path.join(root, "..", "package.json"), "utf8"),
+      readFile(path.join(root, "..", "android/app/build.gradle"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/route.tsx"), "utf8"),
     ]);
 
     expect(chat).toContain("wasAtBottomRef");
@@ -144,5 +147,9 @@ describe("Alpha Byte imported-project identity", () => {
     expect(migration).toContain("digest(normalized, 'sha256')");
     expect(migration).toContain("profile-avatars");
     expect(viteConfig).toContain("tanstackRouter");
+    expect(packageJson).toContain("android:admin:debug");
+    expect(androidBuild).toContain("applicationIdSuffix \".admin\"");
+    expect(androidBuild).toContain("processAdmin");
+    expect(authenticatedShell).toContain("isAdminEdition");
   });
 });

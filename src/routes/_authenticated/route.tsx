@@ -6,6 +6,7 @@ import { MessageCircle, Users, Phone, Settings } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
+import { isAdminEdition } from "@/lib/app-edition";
 import { cn } from "@/lib/utils";
 import { registerPushNotifications } from "@/lib/push-notifications";
 import {
@@ -45,7 +46,8 @@ function AuthenticatedShell() {
     if (!ready) return;
     if (!session || !hasVault) navigate({ to: "/auth", replace: true });
     else if (!vault) navigate({ to: "/lock", replace: true });
-  }, [ready, session, hasVault, vault, navigate]);
+    else if (isAdminEdition && pathname !== "/admin") navigate({ to: "/admin", replace: true });
+  }, [ready, session, hasVault, vault, navigate, pathname]);
 
   useEffect(() => {
     if (!session?.user.id || !vault?.deviceId) return;
@@ -63,7 +65,7 @@ function AuthenticatedShell() {
     let removeListener: (() => Promise<void>) | undefined;
     void App.addListener("backButton", ({ canGoBack }) => {
       if (exitDialogOpenRef.current) return;
-      const isAppStart = pathnameRef.current === "/chats";
+      const isAppStart = pathnameRef.current === (isAdminEdition ? "/admin" : "/chats");
       if (canGoBack && !isAppStart) {
         window.history.back();
         return;
@@ -88,7 +90,7 @@ function AuthenticatedShell() {
     );
   }
 
-  const hideNav = pathname.startsWith("/chat/") || pathname.startsWith("/security/");
+  const hideNav = isAdminEdition || pathname.startsWith("/chat/") || pathname.startsWith("/security/");
 
   const items = [
     { to: "/chats", icon: MessageCircle, label: t("nav.chats") },

@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { hasRole } from "@/lib/ab-api";
+import { isAdminEdition } from "@/lib/app-edition";
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
 import { createSubscriptionCode } from "@/lib/subscriptions";
@@ -179,9 +180,15 @@ function AdminPage() {
       <div className="mx-auto max-w-lg px-4 pt-16 text-center">
         <ShieldAlert className="mx-auto h-9 w-9 text-destructive" />
         <p className="mt-3 font-semibold">{t("admin.denied")}</p>
-        <Link to="/settings" className="mt-4 inline-block text-sm text-primary underline">
-          {t("common.back")}
-        </Link>
+        {isAdminEdition ? (
+          <Button className="mt-4" variant="outline" onClick={() => void supabase.auth.signOut()}>
+            تسجيل الخروج
+          </Button>
+        ) : (
+          <Link to="/settings" className="mt-4 inline-block text-sm text-primary underline">
+            {t("common.back")}
+          </Link>
+        )}
       </div>
     );
   }
@@ -189,9 +196,11 @@ function AdminPage() {
   return (
     <div className="mx-auto max-w-lg px-4 pt-6">
       <header className="mb-4 flex items-center gap-3">
-        <Link to="/settings" className="rounded-full p-1.5 text-muted-foreground press">
-          <ArrowRight className="h-5 w-5" />
-        </Link>
+        {!isAdminEdition && (
+          <Link to="/settings" className="rounded-full p-1.5 text-muted-foreground press">
+            <ArrowRight className="h-5 w-5" />
+          </Link>
+        )}
         <h1 className="text-xl font-bold">{t("admin.title")}</h1>
       </header>
       <p className="mb-4 rounded-2xl border border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
