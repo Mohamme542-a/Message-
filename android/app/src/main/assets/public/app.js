@@ -1,15 +1,16 @@
-import { cacheCiphertextMessages, createConversationKeyMaterial, createEncryptedRecoveryBackup, createRecoveryKey, decryptFile, decryptJson, deleteLocalConversationData, encryptFile, encryptJson, exportConversationKeyRaw, fromB64, getCachedCiphertextMessages, getConversationKey, getDeviceIdentity, hasMessageLockCode, hasUnlockedRecoveryKey, openConversationKey, restoreEncryptedRecoveryBackup, sealConversationKey, setMessageLockCode, storeConversationKey, toB64, unlockRecoveryKey, verifyMessageLockCode } from "./alpha-crypto.js";
+import { cacheCiphertextMessages, createConversationKeyMaterial, createEncryptedRecoveryBackup, createRecoveryKey, decryptFile, decryptJson, deleteCachedCiphertextMessage, deleteLocalConversationData, encryptFile, encryptJson, exportConversationKeyRaw, fromB64, getCachedCiphertextMessages, getConversationKey, getDeviceIdentity, hasMessageLockCode, hasUnlockedRecoveryKey, openConversationKey, restoreEncryptedRecoveryBackup, sealConversationKey, setMessageLockCode, storeConversationKey, toB64, unlockRecoveryKey, verifyMessageLockCode } from "./alpha-crypto.js";
 
 const API = "https://abmessenger-miwecp5v.manus.space";
 const TOKEN_KEY = "alpha-byte.session";
 const ACCOUNT_KEY = "alpha-byte.account";
 const app = document.getElementById("app");
-const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, legacyIdentityMigrationAllowed: false, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, collectiveSearch: "", collectivePeople: [], collectiveSearching: false, collective: { kind: "group", members: [], avatarFile: null }, collectiveAdmin: { members: [], links: [], joinRequests: [], search: "", people: [], loading: false, newLink: "" }, inviteJoin: { open: false, value: "" }, conversationTools: false, messageSearch: "", messageSearchOpen: false, replyTo: null, attachmentDraft: null, avatarUrls: {}, attachmentUrls: {}, attachmentLoading: {}, attachmentPreview: null, grants: [], recovery: { unlocked: false, generatedKey: "" }, messageLock: { configured: false }, expiry: "week", busy: false, reactionPicker: false, stickerPicker: false };
+const state = { stage: "activation", view: "inbox", mode: "login", code: "", account: null, device: null, legacyIdentityMigrationAllowed: false, notice: "", dark: localStorage.getItem("alpha-byte.theme") !== "light", receipts: localStorage.getItem("alpha-byte.receipts") !== "off", sessions: null, currentSessionId: "", conversations: [], activeConversation: null, messages: [], people: [], search: "", searching: false, collectiveSearch: "", collectivePeople: [], collectiveSearching: false, collective: { kind: "group", members: [], avatarFile: null }, collectiveAdmin: { members: [], links: [], joinRequests: [], search: "", people: [], loading: false, newLink: "" }, inviteJoin: { open: false, value: "" }, conversationTools: false, messageSearch: "", messageSearchOpen: false, replyTo: null, attachmentDraft: null, avatarUrls: {}, attachmentUrls: {}, attachmentLoading: {}, attachmentPreview: null, grants: [], recovery: { unlocked: false, generatedKey: "" }, messageLock: { configured: false }, expiry: "week", busy: false, messageSending: false, messageStates: {}, scrollToLatest: false, reactionPicker: false, stickerPicker: false };
 let conversationRefreshTimer = null;
 let recoveryBackupTimer = null;
 
 const text = (value) => String(value ?? "").replace(/[&<>'"]/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", "\"":"&quot;" })[character]);
 const sessionToken = () => localStorage.getItem(TOKEN_KEY) || "";
+const scrollMessagesToLatest = () => { if (!state.scrollToLatest) return; const list = document.getElementById("message-scroll"); if (list) { list.scrollTop = list.scrollHeight; state.scrollToLatest = false; } };
 const namesKey = () => `alpha-byte.conversation-names.${state.account?.accountId || "guest"}`;
 const deletedConversationsKey = () => `alpha-byte.deleted-conversations.${state.account?.accountId || "guest"}`;
 const accountNames = () => JSON.parse(localStorage.getItem(namesKey()) || "{}");
@@ -34,6 +35,9 @@ async function api(path, method = "GET", body, headers = {}) {
 const isGranted = key => state.grants.some(item => item.featureKey === key);
 const profileThemeKey = () => `alpha-byte.profile-theme.${state.account?.accountId || "guest"}`;
 const profileTheme = () => isGranted("profile_theme") ? localStorage.getItem(profileThemeKey()) || "graphite" : "graphite";
+const chatWallpaperKey = () => `alpha-byte.chat-wallpaper.${state.account?.accountId || "guest"}`;
+const chatWallpaper = () => isGranted("chat_wallpaper") ? localStorage.getItem(chatWallpaperKey()) || "aurora" : "aurora";
+const premiumEmoji = ["✨", "🔥", "💫", "🎯", "🫶", "⚡", "🌙", "🌊", "🪩", "🚀", "🧿", "🎧", "🫧", "🌸", "🤍"];
 const setNotice = value => { state.notice = value; render(); };
 const mark = () => '<svg class="mark" viewBox="0 0 108 108" role="img" aria-label="Alpha Byte"><rect width="108" height="108" fill="#050505"/><path fill="#F4F4F5" d="M17 82 43 25h12l26 57H68l-6-14H35l-6 14Zm23-25h18L49 36Z"/><path fill="#A3A3A3" d="M56 26h14c14 0 21 7 21 16 0 6-3 11-8 13 7 2 10 7 10 13 0 10-8 17-22 17H56Zm12 10v15h4c5 0 8-3 8-8 0-5-3-7-9-7Zm0 24v16h5c6 0 9-3 9-8 0-5-4-8-10-8Z"/><path fill="#050505" d="M54 24h7v61h-7z"/></svg>';
 const busy = value => { state.busy = value; render(); };
@@ -71,6 +75,9 @@ function resetAccountState() {
   state.grants = [];
   state.recovery = { unlocked: false, generatedKey: "" };
   state.messageLock = { configured: false };
+  state.messageSending = false;
+  state.messageStates = {};
+  state.scrollToLatest = false;
   state.reactionPicker = false;
   state.stickerPicker = false;
 }
@@ -102,7 +109,7 @@ async function ensureSenderDevice() {
   return registerDevice();
 }
 
-async function loadGrants() { const data = await api("/api/native/features"); state.grants = data.grants; if (!isGranted("profile_theme")) localStorage.removeItem(profileThemeKey()); }
+async function loadGrants() { const data = await api("/api/native/features"); state.grants = data.grants; if (!isGranted("profile_theme")) localStorage.removeItem(profileThemeKey()); if (!isGranted("chat_wallpaper")) localStorage.removeItem(chatWallpaperKey()); }
 async function loadSessions() { state.sessions = null; render(); try { const data = await api("/api/native/sessions"); state.sessions = data.sessions; state.currentSessionId = data.currentSessionId; } catch (error) { state.sessions = []; state.notice = messageFor(error.message); } render(); }
 async function loadConversations() { const data = await api("/api/native/conversations"); const deleted = locallyDeletedConversations(); state.conversations = data.conversations.filter(conversation => !deleted.has(conversation.id)); }
 
@@ -180,19 +187,29 @@ function stopConversationRefresh() {
   conversationRefreshTimer = null;
 }
 
-const messageFingerprint = messages => messages.map(message => message.id).join("|");
+const messageFingerprint = messages => messages.map(message => `${message.id}:${message.deliveryState || "accepted"}`).join("|");
 const attachmentMime = value => String(value?.mimeType || "").toLowerCase();
 const attachmentName = value => String(value?.name || "alpha-byte-file");
 const isImageAttachment = value => attachmentMime(value).startsWith("image/") || /\.(?:avif|bmp|gif|jpe?g|png|webp)$/i.test(attachmentName(value));
 const resolvedAttachmentMime = value => attachmentMime(value) || (/\.(?:jpe?g)$/i.test(attachmentName(value)) ? "image/jpeg" : /\.png$/i.test(attachmentName(value)) ? "image/png" : /\.webp$/i.test(attachmentName(value)) ? "image/webp" : /\.gif$/i.test(attachmentName(value)) ? "image/gif" : "application/octet-stream");
 const messageTime = value => { try { return value ? new Intl.DateTimeFormat("ar", { hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "مشفّرة"; } catch { return "مشفّرة"; } };
+const outgoingMessageState = message => state.messageStates[message.id] || message.deliveryState || "accepted";
+const receiptMark = message => {
+  const status = outgoingMessageState(message);
+  if (status === "pending") return '<i class="receipt-spinner" aria-label="قيد الإرسال"></i>';
+  if (status === "read") return '<i class="receipt read" aria-label="قُرئت">✓✓</i>';
+  if (status === "delivered") return '<i class="receipt delivered" aria-label="سُلّمت">✓✓</i>';
+  return '<i class="receipt accepted" aria-label="أُرسلت">✓</i>';
+};
 
 async function decodeConversationMessages(conversationId, key, envelopes) {
   await cacheCiphertextMessages(state.account.accountId, conversationId, envelopes);
   const cached = await getCachedCiphertextMessages(state.account.accountId, conversationId);
-  const merged = Array.from(new Map([...cached, ...envelopes].map(envelope => [envelope.id, envelope])).values());
+  const remoteIds = new Set(envelopes.map(envelope => envelope.id));
+  const merged = Array.from(new Map([...cached.filter(envelope => remoteIds.has(envelope.id)), ...envelopes].map(envelope => [envelope.id, envelope])).values());
   const messages = [];
   for (const envelope of merged) {
+    if (envelope.deliveryState && state.messageStates[envelope.id] === "pending") state.messageStates[envelope.id] = envelope.deliveryState;
     try { messages.push({ ...envelope, clear: await decryptJson(key, envelope.encryptedPayload) }); }
     catch { messages.push({ ...envelope, clear: { kind: "unreadable" } }); }
   }
@@ -208,6 +225,7 @@ async function refreshOpenConversation() {
     const messages = await decodeConversationMessages(conversation.id, conversation.key, result.messages);
     if (messageFingerprint(messages) !== messageFingerprint(state.messages)) {
       state.messages = messages;
+      state.scrollToLatest = true;
       render();
     }
   } catch { /* A transient refresh failure must not replace the open conversation or interrupt typing. */ }
@@ -246,6 +264,7 @@ async function openConversation(conversation) {
     const avatarUrl = await loadConversationAvatar(key, metadata.conversation?.avatarAssetId).catch(() => "");
     state.activeConversation = { ...conversation, ...metadata.conversation, memberRole: metadata.membership?.memberRole, avatarUrl, key };
     state.messages = messages;
+    state.scrollToLatest = true;
     state.view = "conversation";
     startConversationRefresh();
   } catch (error) { state.notice = messageFor(error.message); }
@@ -253,11 +272,12 @@ async function openConversation(conversation) {
 }
 
 function render() {
-  document.body.className = [state.dark ? "" : "light", `profile-${profileTheme()}`].filter(Boolean).join(" ");
+  document.body.className = [state.dark ? "" : "light", `profile-${profileTheme()}`, `wallpaper-${chatWallpaper()}`, isGranted("avatar_frame") ? "avatar-frame-active" : ""].filter(Boolean).join(" ");
   if (state.stage === "activation") return renderActivation();
   if (state.stage === "access") return renderAccess();
   if (state.stage === "message-lock") return renderMessageLock();
   renderApp();
+  if (state.view === "conversation" && typeof requestAnimationFrame === "function") requestAnimationFrame(scrollMessagesToLatest);
 }
 
 function renderActivation() {
@@ -292,7 +312,7 @@ function recoverySection() {
   return `<section class="recovery-section"><p class="session-title">استعادة المحادثات المشفّرة</p>${generated}<div class="settings-card">${create}</div><form class="recovery-restore" id="restore-recovery-form"><label class="field">مفتاح الاستعادة<input id="recovery-key-input" autocomplete="off" spellcheck="false" placeholder="ألصق مفتاحك هنا" required /></label><button class="secondary" type="submit">استعادة من النسخة المشفّرة</button></form><p class="muted">تستعيد المفاتيح فقط؛ لا تستعيد ذاكرة المرفقات أو هوية الجهاز. قد لا تتوفر رسائل انتهت مدة الاحتفاظ الخادمية بها (حدها أسبوع).</p></section>`;
 }
 
-function featureTiles() { const catalog = [["verified_badge","شارة تحقق Alpha","تظهر بجانب اسمك"],["sticker_pack","ملصقات حصرية","حزمة رموز موسعة"],["profile_theme","مظهر حساب حصري","ألوان وهوية مميزة"]]; return `<div class="feature-grid">${catalog.map(([key,label,description]) => { const grant = state.grants.find(item => item.featureKey === key); const trial = key === "sticker_pack" || key === "profile_theme"; const status = grant ? (grant.expiresAt ? `تجربة حتى ${new Intl.DateTimeFormat("ar", { day:"numeric", month:"short" }).format(new Date(grant.expiresAt))}` : "مفعلة") : (trial ? `تجربة مجانية ٣ أيام · ${text(description)}` : `طلب موافقة · ${text(description)}`); return `<button class="feature-tile ${grant ? "granted" : ""}" ${grant ? "" : trial ? `data-trial="${key}"` : `data-feature="${key}"`} type="button"><strong>${text(label)}</strong><small>${status}</small></button>`; }).join("")}</div>`; }
+function featureTiles() { const catalog = [["verified_badge","شارة Alpha اللامعة","هوية موثقة متحركة"],["sticker_pack","استوديو الملصقات","حزم رموز Alpha موسعة"],["emoji_pack","تفاعلات Pulse","رموز تعبيرية موسعة داخل المحادثة"],["profile_theme","ألوان الهوية","ستة مظاهر للحساب"],["chat_wallpaper","خلفيات المحادثة","أجواء بصرية قابلة للتبديل"],["avatar_frame","إطار الهوية","هالة متدرجة حول علامتك"]]; return `<div class="feature-grid">${catalog.map(([key,label,description]) => { const grant = state.grants.find(item => item.featureKey === key); const trial = key !== "verified_badge"; const status = grant ? (grant.expiresAt ? `تجربة حتى ${new Intl.DateTimeFormat("ar", { day:"numeric", month:"short" }).format(new Date(grant.expiresAt))}` : "مفعلة") : (trial ? `تجربة مجانية ٣ أيام · ${text(description)}` : `طلب موافقة · ${text(description)}`); return `<button class="feature-tile ${grant ? "granted" : ""} feature-${key}" ${grant ? "" : trial ? `data-trial="${key}"` : `data-feature="${key}"`} type="button"><strong>${text(label)}</strong><small>${status}</small></button>`; }).join("")}</div>`; }
 
 function accountSecuritySection() {
   return `<section class="account-security"><p class="session-title">الحساب والقفل المحلي</p><form class="settings-form" id="username-form"><label class="field">اسم المستخدم<input id="account-username" value="${text(state.account?.username || "")}" pattern="[a-z0-9_]{3,32}" autocomplete="username" required /></label><button class="secondary" type="submit">حفظ اسم المستخدم</button></form><form class="settings-form" id="passphrase-form"><label class="field">العبارة السرية الحالية<input id="current-passphrase" type="password" autocomplete="current-password" required /></label><label class="field">عبارة سرية جديدة<input id="next-passphrase" type="password" minlength="12" autocomplete="new-password" required /></label><button class="secondary" type="submit">تغيير عبارة الدخول</button></form><form class="settings-form" id="message-lock-settings-form"><label class="field">${state.messageLock.configured ? "رمز الرسائل الحالي" : "رمز الرسائل"}<input id="current-message-lock" inputmode="numeric" type="password" minlength="6" maxlength="32" ${state.messageLock.configured ? "required" : ""} /></label><label class="field">${state.messageLock.configured ? "رمز رسائل جديد" : "تعيين رمز رسائل"}<input id="next-message-lock" inputmode="numeric" type="password" minlength="6" maxlength="32" required /></label><button class="secondary" type="submit">${state.messageLock.configured ? "تغيير رمز الرسائل" : "تفعيل قفل الرسائل"}</button><p class="muted">هذا القفل محلي لهذا الجهاز فقط، وليس عبارة دخول الحساب أو مفتاح الاستعادة.</p></form></section>`;
@@ -300,8 +320,19 @@ function accountSecuritySection() {
 
 function profileThemePicker() {
   if (!isGranted("profile_theme")) return "";
-  const choices = [["graphite", "غرافيت"], ["cobalt", "كوبالت"], ["violet", "بنفسجي"]];
+  const choices = [["graphite", "غرافيت"], ["cobalt", "كوبالت"], ["violet", "بنفسجي"], ["rose", "وردي"], ["nord", "شمالي"], ["copper", "نحاسي"]];
   return `<section class="profile-theme-picker"><p class="session-title">مظهر الحساب الحصري</p><div>${choices.map(([key, label]) => `<button class="${profileTheme() === key ? "selected" : ""}" data-profile-theme="${key}" type="button"><i></i>${label}</button>`).join("")}</div></section>`;
+}
+
+function chatWallpaperPicker() {
+  if (!isGranted("chat_wallpaper")) return "";
+  const choices = [["aurora", "شفق"], ["midnight", "ليل"], ["oasis", "واحة"], ["prism", "طيف"], ["ember", "جمر"]];
+  return `<section class="profile-theme-picker wallpaper-picker"><p class="session-title">خلفية المحادثة</p><div>${choices.map(([key, label]) => `<button class="${chatWallpaper() === key ? "selected" : ""}" data-chat-wallpaper="${key}" type="button"><i></i>${label}</button>`).join("")}</div></section>`;
+}
+
+function featureCatalog() {
+  const features = ["رسائل نصية مشفرة", "صور مشفرة محليًا", "ملفات مشفرة محليًا", "مجموعات", "قنوات", "أدوار مالك ومشرف", "روابط انضمام مضبوطة", "طلبات انضمام", "حظر الحسابات", "إبلاغات", "بحث في الرسائل", "ردود مشفرة", "نسخ نص محلي", "مؤقت يوم", "مؤقت أسبوع", "مؤقت شهر", "حذف خادمي خلال أسبوع", "حذف رسالة المرسل", "حذف محلي للمحادثة", "مفتاح استعادة", "قفل رسائل محلي", "إيصالات قراءة", "تحديث محادثة تلقائي", "مسودات مرفقات", "منتقي نظام للملفات", "كاميرا عند الطلب", "تفاعلات Pulse", "ملصقات Alpha", "خلفيات محادثة", "مظاهر وإطار هوية"];
+  return `<details class="feature-catalog"><summary>٣٠ ميزة متاحة في Alpha Byte</summary><div>${features.map((feature, index) => `<span><b>${String(index + 1).padStart(2, "0")}</b>${text(feature)}</span>`).join("")}</div></details>`;
 }
 
 function peopleResults() {
@@ -334,10 +365,11 @@ function renderApp() {
   if (state.view === "inbox") content = `<section class="inbox-title"><div><p class="eyebrow">${text(account.username)}</p><h1>Alpha Byte</h1></div><button class="compose" id="open-people" type="button" aria-label="محادثة جديدة">＋</button></section><button class="collective-cta" id="open-collective" type="button"><span class="collective-cta-icon">◈</span><span><strong>إنشاء مجموعة أو قناة</strong><small>مجانًا · اسم وصورة وأدوار مالك ومشرف وعضو</small></span><i>‹</i></button><button class="invite-join-toggle" id="open-invite-join" type="button">لديك رابط دعوة؟ انضم بطلب موافقة <i>‹</i></button>${state.inviteJoin.open ? `<form class="invite-join-form" id="invite-join-form"><input id="invite-join-input" value="${text(state.inviteJoin.value)}" placeholder="الصق رابط أو رمز الدعوة" autocomplete="off"/><button type="submit">إرسال الطلب</button></form>` : ""}${conversationList()}`;
   if (state.view === "people") content = `<section class="page"><div class="page-head"><span class="page-icon">⌕</span><h2>الأشخاص</h2></div><label class="search-box"><input id="people-search" value="${text(state.search)}" placeholder="ابحث باسم المستخدم" autocomplete="off" /><span>⌕</span></label><div class="people-results">${peopleResults()}</div></section>`;
   if (state.view === "collective-create") content = renderCollectiveBuilder();
-  if (state.view === "settings") content = `<section class="page"><div class="page-head"><span class="page-icon">⚙</span><h2>الإعدادات</h2></div><div class="settings-card"><div class="setting"><span><strong>${text(account.username)}${isGranted("verified_badge") ? ' <b class="verified-badge">✓ موثّق</b>' : ""}</strong><small>${text(account.accountId)}</small></span><i class="setting-icon">◉</i></div><button class="setting" id="theme-toggle"><span><strong>المظهر</strong><small>${state.dark ? "داكن" : "فاتح"}</small></span><i class="setting-icon">◐</i></button><button class="setting" id="receipt-toggle"><span><strong>إيصالات القراءة</strong><small>${state.receipts ? "مفعلة" : "متوقفة"}</small></span><i class="setting-icon">✓</i></button><div class="setting permission-note"><span><strong>الصور والملفات</strong><small>اختيار من منتقي النظام، والكاميرا تطلب الإذن عند استخدامها فقط.</small></span><i class="setting-icon">⌁</i></div></div>${accountSecuritySection()}${recoverySection()}<p class="session-title">امتيازات الحساب</p>${featureTiles()}${profileThemePicker()}${sessionSection()}<div class="settings-card"><button class="setting danger" id="logout"><span><strong>تسجيل الخروج</strong><small>إنهاء جلسة هذا الجهاز</small></span><i class="setting-icon">×</i></button></div></section>`;
+  if (state.view === "settings") content = `<section class="page"><div class="page-head"><span class="page-icon">⚙</span><h2>الإعدادات</h2></div><div class="settings-card"><div class="setting"><span><strong>${text(account.username)}${isGranted("verified_badge") ? ' <b class="verified-badge">✓ موثّق</b>' : ""}</strong><small>${text(account.accountId)}</small></span><i class="setting-icon ${isGranted("avatar_frame") ? "identity-frame" : ""}">◉</i></div><button class="setting" id="theme-toggle"><span><strong>المظهر</strong><small>${state.dark ? "داكن" : "فاتح"}</small></span><i class="setting-icon">◐</i></button><button class="setting" id="receipt-toggle"><span><strong>إيصالات القراءة</strong><small>${state.receipts ? "مفعلة" : "متوقفة"}</small></span><i class="setting-icon">✓</i></button><div class="setting permission-note"><span><strong>الصور والملفات</strong><small>اختيار من منتقي النظام، والكاميرا تطلب الإذن عند استخدامها فقط.</small></span><i class="setting-icon">⌁</i></div></div>${accountSecuritySection()}${recoverySection()}<p class="session-title">امتيازات الحساب</p>${featureTiles()}${profileThemePicker()}${chatWallpaperPicker()}${featureCatalog()}${sessionSection()}<div class="settings-card"><button class="setting danger" id="logout"><span><strong>تسجيل الخروج</strong><small>إنهاء جلسة هذا الجهاز</small></span><i class="setting-icon">×</i></button></div></section>`;
   if (state.view === "conversation" && state.activeConversation) content = renderConversation();
   app.innerHTML = `<main class="app-shell ${state.view === "conversation" ? "chat-shell" : ""}">${state.view !== "conversation" ? `<header class="topbar">${mark().replace('class="mark"','class="mark mark-sm"')}<button class="icon-button" id="settings-button" type="button" aria-label="الإعدادات">⚙</button></header>` : ""}${state.notice ? `<p class="app-notice" role="status">${text(state.notice)}</p>` : ""}${content}</main>${state.view !== "conversation" ? `<nav class="nav"><button class="${state.view === "inbox" ? "current" : ""}" data-view="inbox"><i>✦</i><span>المحادثات</span></button><button class="${state.view === "people" ? "current" : ""}" data-view="people"><i>⌕</i><span>الأشخاص</span></button><button class="${state.view === "settings" ? "current" : ""}" data-view="settings"><i>⚙</i><span>الإعدادات</span></button></nav>` : ""}`;
   bindApp();
+  if (state.view === "conversation") attachOutgoingDeleteControls();
   if (state.view === "conversation") void loadVisibleImagePreviews();
 }
 
@@ -362,16 +394,16 @@ function renderConversation() {
   const name = accountNames()[state.activeConversation.id] || "محادثة خاصة";
   const channelReadOnly = state.activeConversation.kind === "channel" && !["owner", "admin"].includes(state.activeConversation.memberRole);
   const filteredMessages = state.messageSearch.trim() ? state.messages.filter(message => String(message.clear?.text || "").toLocaleLowerCase().includes(state.messageSearch.trim().toLocaleLowerCase())) : state.messages;
-  const items = filteredMessages.map(message => { const clear = message.clear || {}; const direction = message.senderDeviceId === state.device?.deviceId ? "outgoing" : "incoming"; const meta = `<small class="message-meta">${text(messageTime(message.serverReceivedAt))}</small>`; const reply = clear.replyTo ? `<div class="reply-context"><span>رد على رسالة</span><p>${text(clear.replyPreview || "رسالة مشفّرة")}</p></div>` : ""; const actions = clear.kind === "text" ? `<div class="message-actions"><button data-message-reply="${text(message.id)}" type="button">رد</button><button data-message-copy="${text(clear.text || "")}" type="button">نسخ</button></div>` : ""; if (clear.kind === "reaction") return `<div class="reaction-event">${text(clear.emoji || "✦")} تفاعل مشفّر</div>`; if (clear.kind === "sticker") return `<div class="sticker-event ${direction}"><b>${text(clear.glyph || "✦")}</b><span>${text(clear.label || "ALPHA")}</span>${meta}</div>`; if (clear.kind === "attachment") { const attachmentId = text(clear.attachmentId || ""); const preview = state.attachmentUrls[clear.attachmentId]; const image = isImageAttachment(clear); return `<div class="message-bubble attachment-card ${direction}">${reply}${image && preview ? `<button class="image-preview" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button"><img src="${text(preview)}" alt="صورة مشفّرة بعد فكها محليًا"/></button>` : ""}<strong>${image ? "صورة مشفّرة" : "ملف مشفّر"}</strong><small>${text(attachmentName(clear))}</small><button class="file-open" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button">${image ? "عرض بعد فك التشفير" : "تنزيل بعد فك التشفير"}</button>${meta}</div>`; } if (clear.kind === "unreadable") return '<div class="reaction-event">تعذر فتح رسالة مشفّرة على هذا الجهاز.</div>'; return `<div class="message-bubble ${direction}">${reply}<p>${text(clear.text || "")}</p>${actions}${meta}</div>`; }).join("") || '<section class="empty compact"><div class="empty-ring">✦</div><p>لا توجد رسائل مطابقة</p><small>جرّب كلمة مختلفة أو امسح البحث.</small></section>';
-  const reactions = ["👍", "❤️", "😂", "😮", "😢"];
-  const stickers = [["✦", "ALPHA"], ["◈", "BYTE"], ["↗", "RISE"], ["∞", "PRIVATE"]];
+  const items = filteredMessages.map(message => { const clear = message.clear || {}; const direction = message.senderDeviceId === state.device?.deviceId ? "outgoing" : "incoming"; const meta = `<small class="message-meta">${text(messageTime(message.serverReceivedAt))}${direction === "outgoing" ? receiptMark(message) : ""}</small>`; const reply = clear.replyTo ? `<div class="reply-context"><span>رد على رسالة</span><p>${text(clear.replyPreview || "رسالة مشفّرة")}</p></div>` : ""; const actions = clear.kind === "text" ? `<div class="message-actions"><button data-message-reply="${text(message.id)}" type="button">رد</button><button data-message-copy="${text(clear.text || "")}" type="button">نسخ</button></div>` : ""; if (clear.kind === "pending") return `<div class="message-bubble outgoing message-pending">${clear.attachment ? '<i class="pending-attachment">⌁</i>' : `<p>${text(clear.text || "")}</p>`}${meta}</div>`; if (clear.kind === "reaction") return `<div class="reaction-event">${text(clear.emoji || "✦")} تفاعل مشفّر</div>`; if (clear.kind === "sticker") return `<div class="sticker-event ${direction}"><b>${text(clear.glyph || "✦")}</b><span>${text(clear.label || "ALPHA")}</span>${meta}</div>`; if (clear.kind === "attachment") { const attachmentId = text(clear.attachmentId || ""); const preview = state.attachmentUrls[clear.attachmentId]; const image = isImageAttachment(clear); return `<div class="message-bubble attachment-card ${direction}">${reply}${image && preview ? `<button class="image-preview" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button"><img src="${text(preview)}" alt="صورة مشفّرة بعد فكها محليًا"/></button>` : ""}<strong>${image ? "صورة مشفّرة" : "ملف مشفّر"}</strong><small>${text(attachmentName(clear))}</small><button class="file-open" data-attachment-open="${attachmentId}" data-file-name="${text(attachmentName(clear))}" data-file-mime="${text(resolvedAttachmentMime(clear))}" type="button">${image ? "عرض بعد فك التشفير" : "تنزيل بعد فك التشفير"}</button>${meta}</div>`; } if (clear.kind === "unreadable") return '<div class="reaction-event">تعذر فتح رسالة مشفّرة على هذا الجهاز.</div>'; return `<div class="message-bubble ${direction}">${reply}<p>${text(clear.text || "")}</p>${actions}${meta}</div>`; }).join("") || '<section class="empty compact"><div class="empty-ring">✦</div><p>لا توجد رسائل مطابقة</p><small>جرّب كلمة مختلفة أو امسح البحث.</small></section>';
+  const reactions = isGranted("emoji_pack") ? ["👍", "❤️", "😂", "😮", "😢", ...premiumEmoji] : ["👍", "❤️", "😂", "😮", "😢"];
+  const stickers = isGranted("sticker_pack") ? [["✦", "ALPHA"], ["◈", "BYTE"], ["↗", "RISE"], ["∞", "PRIVATE"], ["⚡", "PULSE"], ["◉", "NOVA"], ["⌁", "WAVE"], ["⬡", "VAULT"]] : [["✦", "ALPHA"], ["◈", "BYTE"], ["↗", "RISE"], ["∞", "PRIVATE"]];
   const attachmentDraft = state.attachmentDraft ? `<section class="attachment-draft" aria-label="مرفق قبل الإرسال">${state.attachmentDraft.image ? `<img src="${text(state.attachmentDraft.url)}" alt="معاينة قبل الإرسال"/>` : '<span class="draft-file-icon">⌁</span>'}<span><strong>${text(state.attachmentDraft.name)}</strong><small>${state.attachmentDraft.image ? "صورة جاهزة للتشفير" : "ملف جاهز للتشفير"}</small></span><button id="remove-attachment-draft" type="button" aria-label="إزالة المرفق">×</button></section>` : "";
-  const composer = channelReadOnly ? '<p class="channel-readonly">هذه قناة: النشر متاح للمالك والمشرفين فقط.</p>' : `${attachmentDraft}<form class="composer" id="message-form"><button class="send" type="submit" aria-label="إرسال" ${state.busy ? "disabled" : ""}>${state.busy ? '<span class="send-pending">جارٍ الإرسال…</span>' : "➤"}</button><label class="attach ${state.busy ? "disabled" : ""}" title="اختيار صورة أو ملف"><span>⌇</span><input id="attachment-file" type="file" accept="image/*,application/pdf,text/plain,.doc,.docx,.zip" hidden ${state.busy ? "disabled" : ""}/></label><input id="message-text" placeholder="اكتب رسالة" autocomplete="off" ${state.busy ? "disabled" : ""}/><select id="expiry" aria-label="مدة الاحتفاظ" ${state.busy ? "disabled" : ""}><option value="day" ${state.expiry === "day" ? "selected" : ""}>١ي</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>٧ي</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>٣٠ي</option></select><button class="attach camera" id="camera-button" type="button" title="التقاط صورة" ${state.busy ? "disabled" : ""}>⌾</button><input id="camera-file" type="file" accept="image/*" capture="environment" hidden ${state.busy ? "disabled" : ""}/></form>`;
+  const composer = channelReadOnly ? '<p class="channel-readonly">هذه قناة: النشر متاح للمالك والمشرفين فقط.</p>' : `<div class="composer-stack">${attachmentDraft}<form class="composer" id="message-form"><button class="send ${state.messageSending ? "is-sending" : ""}" type="submit" aria-label="إرسال">${state.messageSending ? '<i class="send-spinner"></i>' : "➤"}</button><label class="attach" title="اختيار صورة أو ملف"><span>⌇</span><input id="attachment-file" type="file" accept="image/*,application/pdf,text/plain,.doc,.docx,.zip" hidden /></label><input id="message-text" placeholder="اكتب رسالة" autocomplete="off"/><select id="expiry" aria-label="مدة الاحتفاظ"><option value="day" ${state.expiry === "day" ? "selected" : ""}>١ي</option><option value="week" ${state.expiry === "week" ? "selected" : ""}>٧ي</option><option value="month" ${state.expiry === "month" ? "selected" : ""}>٣٠ي</option></select><button class="attach camera" id="camera-button" type="button" title="التقاط صورة">⌾</button><input id="camera-file" type="file" accept="image/*" capture="environment" hidden /></form><p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p></div>`;
   const conversationAvatar = state.activeConversation.avatarUrl ? `<img class="conversation-avatar" src="${text(state.activeConversation.avatarUrl)}" alt=""/>` : `<span class="conversation-avatar conversation-avatar-fallback">${text(name.slice(0, 1).toUpperCase())}</span>`;
   const preview = state.attachmentPreview ? `<div class="attachment-modal" role="dialog" aria-modal="true"><button id="close-attachment-preview" type="button" aria-label="إغلاق">×</button><img src="${text(state.attachmentPreview.url)}" alt="${text(state.attachmentPreview.name)}"/><p>${text(state.attachmentPreview.name)}</p></div>` : "";
   const messageSearch = state.messageSearchOpen ? `<form class="message-search" id="message-search-form"><input id="message-search-input" value="${text(state.messageSearch)}" placeholder="ابحث في الرسائل المفتوحة على هذا الجهاز" autocomplete="off"/><button type="submit">بحث</button><button id="clear-message-search" type="button">مسح</button></form>` : "";
   const replyDraft = state.replyTo ? `<div class="reply-draft"><span>رد على: ${text(state.replyTo.clear?.text || "رسالة")}</span><button id="cancel-reply" type="button">×</button></div>` : "";
-  return `<section class="conversation-page"><div class="conversation-head"><button class="back-button" id="back-inbox" type="button">›</button>${conversationAvatar}<div><strong>${text(name)}</strong><small>${state.activeConversation.kind === "channel" ? "قناة مشفّرة" : state.activeConversation.kind === "group" ? "مجموعة مشفّرة" : "تشفير محلي قبل الإرسال"}</small></div><button class="icon-button small" id="message-search-toggle" type="button" aria-label="بحث في الرسائل">⌕</button><button class="icon-button small" id="conversation-tools" type="button" aria-label="أدوات المحادثة">⋮</button><button class="icon-button small" id="reaction-button" type="button">☺</button>${isGranted("sticker_pack") ? '<button class="icon-button small" id="sticker-button" type="button">✦</button>' : ""}</div>${messageSearch}${state.reactionPicker ? `<div class="reaction-picker">${reactions.map(emoji => `<button type="button" data-reaction="${emoji}">${emoji}</button>`).join("")}</div>` : ""}${state.stickerPicker ? `<div class="sticker-picker">${stickers.map(([glyph, label]) => `<button type="button" data-sticker-glyph="${glyph}" data-sticker-label="${label}"><b>${glyph}</b><span>${label}</span></button>`).join("")}</div>` : ""}${renderConversationTools()}<div class="message-scroll">${items}</div>${replyDraft}${composer}<p class="retention-note">* تحتفظ الأجهزة بنسخها وفق اختيارها، لكن الخادم يحذف كل النسخ خلال أسبوع.</p>${preview}</section>`;
+  return `<section class="conversation-page"><div class="conversation-top"><div class="conversation-head"><button class="back-button" id="back-inbox" type="button">›</button>${conversationAvatar}<div><strong>${text(name)}</strong><small>${state.activeConversation.kind === "channel" ? "قناة مشفّرة" : state.activeConversation.kind === "group" ? "مجموعة مشفّرة" : "تشفير محلي قبل الإرسال"}</small></div><button class="icon-button small" id="message-search-toggle" type="button" aria-label="بحث في الرسائل">⌕</button><button class="icon-button small" id="conversation-tools" type="button" aria-label="أدوات المحادثة">⋮</button><button class="icon-button small" id="reaction-button" type="button">☺</button>${isGranted("sticker_pack") ? '<button class="icon-button small" id="sticker-button" type="button">✦</button>' : ""}</div>${messageSearch}${state.reactionPicker ? `<div class="reaction-picker">${reactions.map(emoji => `<button type="button" data-reaction="${emoji}">${emoji}</button>`).join("")}</div>` : ""}${state.stickerPicker ? `<div class="sticker-picker">${stickers.map(([glyph, label]) => `<button type="button" data-sticker-glyph="${glyph}" data-sticker-label="${label}"><b>${glyph}</b><span>${label}</span></button>`).join("")}</div>` : ""}${renderConversationTools()}</div><div class="message-scroll" id="message-scroll">${items}</div>${replyDraft}${composer}${preview}</section>`;
 }
 
 async function startConversation(accountId, username) {
@@ -573,23 +605,32 @@ async function requestInviteJoin(value) {
   state.notice = "أُرسل طلب الانضمام؛ سيضيفك المالك أو المشرف بعد الموافقة.";
 }
 
-async function sendEnvelope(value, attachmentFile) {
+async function sendEnvelope(value, attachmentFile, messageId) {
   const conversation = state.activeConversation; if (!conversation?.key) return;
   const senderDevice = await ensureSenderDevice();
-  const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
+  const resolvedMessageId = messageId || `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const expiryMap = { day: 24 * 60 * 60 * 1000, week: 7 * 24 * 60 * 60 * 1000, month: 30 * 24 * 60 * 60 * 1000 };
   let payload = { kind: "text", text: value.trim(), replyTo: state.replyTo?.id || undefined, replyPreview: state.replyTo?.clear?.text?.slice(0, 96) || undefined };
   const expiresAt = Date.now() + expiryMap[state.expiry];
   if (attachmentFile) {
     const cipher = await encryptFile(conversation.key, attachmentFile);
-    const uploaded = await api("/api/native/attachments", "POST", cipher, { "Content-Type": "application/octet-stream", "x-alpha-message-id": messageId, "x-alpha-conversation-id": conversation.id, "x-alpha-retention-deadline": String(expiresAt) });
+    const uploaded = await api("/api/native/attachments", "POST", cipher, { "Content-Type": "application/octet-stream", "x-alpha-message-id": resolvedMessageId, "x-alpha-conversation-id": conversation.id, "x-alpha-retention-deadline": String(expiresAt) });
     payload = { kind: "attachment", name: attachmentFile.name, mimeType: attachmentFile.type || "application/octet-stream", attachmentId: uploaded.attachmentId, replyTo: state.replyTo?.id || undefined, replyPreview: state.replyTo?.clear?.text?.slice(0, 96) || undefined };
   }
   const encryptedPayload = await encryptJson(conversation.key, payload);
   const encryptedHeader = await encryptJson(conversation.key, { v: "ALPHA-LOCAL-1" });
-  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId, conversationId: conversation.id, senderDeviceId: senderDevice.deviceId, encryptedPayload, encryptedHeader, expiresAt });
+  await api("/api/native/messages", "POST", { format: "AB-CIPHERTEXT-v1", messageId: resolvedMessageId, conversationId: conversation.id, senderDeviceId: senderDevice.deviceId, encryptedPayload, encryptedHeader, expiresAt });
   state.replyTo = null;
-  await openConversation(conversation);
+  return { id: resolvedMessageId, conversationId: conversation.id, senderDeviceId: senderDevice.deviceId, encryptedPayload, encryptedHeader, expiresAt: new Date(expiresAt).toISOString(), serverReceivedAt: new Date().toISOString(), deliveryState: "accepted", clear: payload };
+}
+
+async function deleteSentMessage(messageId) {
+  const conversation = state.activeConversation;
+  if (!conversation?.id || !messageId) throw new Error("CONVERSATION_ACCESS_REQUIRED");
+  await api(`/api/native/conversations/${encodeURIComponent(conversation.id)}/messages/${encodeURIComponent(messageId)}`, "DELETE");
+  await deleteCachedCiphertextMessage(state.account.accountId, messageId);
+  state.messages = state.messages.filter(message => message.id !== messageId);
+  delete state.messageStates[messageId];
 }
 
 async function sendReaction(emoji) {
@@ -671,6 +712,7 @@ function bindApp() {
   bindPeopleButtons();
   const theme = document.getElementById("theme-toggle"); if (theme) theme.onclick = () => { state.dark = !state.dark; localStorage.setItem("alpha-byte.theme", state.dark ? "dark" : "light"); render(); };
   document.querySelectorAll("[data-profile-theme]").forEach(button => button.onclick = () => { if (!isGranted("profile_theme")) return; localStorage.setItem(profileThemeKey(), button.dataset.profileTheme); render(); });
+  document.querySelectorAll("[data-chat-wallpaper]").forEach(button => button.onclick = () => { if (!isGranted("chat_wallpaper")) return; localStorage.setItem(chatWallpaperKey(), button.dataset.chatWallpaper); render(); });
   const receipts = document.getElementById("receipt-toggle"); if (receipts) receipts.onclick = () => { state.receipts = !state.receipts; localStorage.setItem("alpha-byte.receipts", state.receipts ? "on" : "off"); render(); };
   const createRecovery = document.getElementById("create-recovery-key"); if (createRecovery) createRecovery.onclick = async () => { busy(true); try { await createRecoveryBackup(); state.notice = "تم إنشاء نسخة مفاتيح مشفّرة. انسخ مفتاح الاستعادة الآن واحفظه في مكان آمن."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   const backupRecovery = document.getElementById("backup-recovery-now"); if (backupRecovery) backupRecovery.onclick = async () => { busy(true); try { await uploadRecoveryBackup(); state.notice = "تم تحديث النسخة المشفّرة للمفاتيح المتاحة على هذا الجهاز."; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
@@ -715,10 +757,27 @@ function bindApp() {
   const cameraButton = document.getElementById("camera-button"); if (cameraButton) cameraButton.onclick = () => { try { window.AlphaByteNative?.requestCameraPermission?.(); } catch { /* Browser preview uses the system file chooser. */ } document.getElementById("camera-file")?.click(); };
   const cameraFile = document.getElementById("camera-file"); if (cameraFile) cameraFile.onchange = event => { setAttachmentDraft(event.target.files?.[0]); render(); };
   const removeAttachmentDraft = document.getElementById("remove-attachment-draft"); if (removeAttachmentDraft) removeAttachmentDraft.onclick = () => { clearAttachmentDraft(); render(); };
-  const form = document.getElementById("message-form"); if (form) form.onsubmit = async event => { event.preventDefault(); const input = document.getElementById("message-text"); const attachment = state.attachmentDraft?.file || null; state.expiry = document.getElementById("expiry").value; if (!input.value.trim() && !attachment) return; busy(true); try { await sendEnvelope(input.value, attachment); clearAttachmentDraft(); } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
+  const form = document.getElementById("message-form"); if (form) form.onsubmit = async event => { event.preventDefault(); const input = document.getElementById("message-text"); const attachment = state.attachmentDraft?.file || null; const value = input.value; state.expiry = document.getElementById("expiry").value; if (!value.trim() && !attachment) return; const messageId = `Msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`; const pendingClear = attachment ? { kind: "pending", attachment: true, name: attachment.name } : { kind: "pending", text: value.trim() }; input.value = ""; clearAttachmentDraft(); state.messageStates[messageId] = "pending"; state.messageSending = true; state.messages = [...state.messages, { id: messageId, senderDeviceId: state.device?.deviceId || "", serverReceivedAt: new Date().toISOString(), deliveryState: "pending", clear: pendingClear }]; state.scrollToLatest = true; render(); try { const sent = await sendEnvelope(value, attachment, messageId); state.messages = state.messages.map(message => message.id === messageId ? sent : message); state.messageStates[messageId] = "accepted"; } catch (error) { state.messages = state.messages.filter(message => message.id !== messageId); delete state.messageStates[messageId]; state.notice = messageFor(error.message); } state.messageSending = Object.values(state.messageStates).includes("pending"); state.scrollToLatest = true; render(); };
   const createCollectiveButton = document.getElementById("create-collective"); if (createCollectiveButton) createCollectiveButton.onclick = async () => { const title = document.getElementById("collective-title")?.value || ""; busy(true); try { await createCollective(state.collective.kind, title, state.collective.avatarFile); state.notice = "تم إنشاء المساحة المشفّرة"; } catch (error) { state.notice = messageFor(error.message); } state.busy = false; render(); };
   document.querySelectorAll("[data-attachment-open]").forEach(button => button.onclick = async () => { try { await openAttachment(button.dataset.attachmentOpen, button.dataset.fileName, button.dataset.fileMime); } catch (error) { state.notice = messageFor(error.message); render(); } });
   const closeAttachmentPreview = document.getElementById("close-attachment-preview"); if (closeAttachmentPreview) closeAttachmentPreview.onclick = () => { state.attachmentPreview = null; render(); };
+}
+
+function attachOutgoingDeleteControls() {
+  if (!state.activeConversation || !document.querySelectorAll || !document.createElement) return;
+  const sentMessages = state.messages.filter(message => message.senderDeviceId === state.device?.deviceId && !["pending", "reaction", "unreadable"].includes(message.clear?.kind));
+  const rendered = [...document.querySelectorAll(".message-bubble.outgoing, .sticker-event.outgoing")];
+  rendered.forEach((bubble, index) => {
+    const message = sentMessages[index];
+    if (!message || bubble.querySelector?.(".message-delete")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "message-delete";
+    button.textContent = "حذف";
+    button.onclick = async () => { if (typeof window.confirm === "function" && !window.confirm("حذف هذه الرسالة من الخادم نهائيًا؟")) return; try { await deleteSentMessage(message.id); } catch (error) { state.notice = messageFor(error.message); } render(); };
+    const actions = bubble.querySelector?.(".message-actions");
+    (actions || bubble).appendChild?.(button);
+  });
 }
 
 function bindPeopleButtons() { document.querySelectorAll("[data-person]").forEach(button => button.onclick = () => startConversation(button.dataset.person, button.dataset.personName)); }

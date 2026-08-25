@@ -293,6 +293,17 @@ export async function cacheCiphertextMessages(accountId, conversationId, envelop
   });
 }
 
+/** Removes one ciphertext envelope from this account's local cache without affecting the conversation key. */
+export async function deleteCachedCiphertextMessage(accountId, messageId) {
+  const db = await openStore();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("messages", "readwrite");
+    tx.objectStore("messages").delete(`${scopeFor(accountId)}:${messageId}`);
+    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => resolve();
+  });
+}
+
 /** Returns unexpired ciphertext cached on this device and removes any locally expired copies. */
 export async function getCachedCiphertextMessages(accountId, conversationId) {
   const db = await openStore();
