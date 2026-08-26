@@ -16,6 +16,14 @@ export interface GroupRow {
   created_at: string;
 }
 
+function nextGroupId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const value = Math.floor(Math.random() * 16);
+    return (character === "x" ? value : (value & 0x3) | 0x8).toString(16);
+  });
+}
+
 export async function createGroup(
   creatorPrivateKey: string,
   creatorPublicKey: string,
@@ -37,14 +45,17 @@ export async function createGroup(
   if (error || !rawGroup || typeof rawGroup !== "object" || !("id" in rawGroup)) {
     // Fallback keeps the client usable on projects where a previously deployed RPC grant is missing.
     const groups = (supabase as unknown as { from: (table: string) => any }).from("groups");
-    const { data: inserted, error: insertError } = await groups
-      .insert({ owner_id: creatorId, kind: options.kind, title: options.title.trim(), description: options.description.trim(), avatar_url: options.avatarUrl ?? null })
-      .select("id, owner_id, kind, title, description, avatar_url, invite_slug, created_at")
-      .single();
-    if (insertError || !inserted) throw new Error(`GROUP_RPC_FAILED:${String((error as { message?: string })?.message ?? (insertError as { message?: string })?.message ?? error ?? insertError)}`);
+    const groupId = nextGroupId();
+    const { error: insertError } = await groups.insert({ id: groupId, owner_id: creatorId, kind: options.kind, title: options.title.trim(), description: options.description.trim(), avatar_url: options.avatarUrl ?? null });
+    if (insertError) throw new Error(`GROUP_CREATION_FAILED:${String((error as { message?: string })?.message ?? (insertError as { message?: string })?.message ?? error ?? insertError)}`);
     const members = (supabase as unknown as { from: (table: string) => any }).from("group_members");
-    const { error: ownerError } = await members.insert({ group_id: inserted.id, member_id: creatorId, role: "owner" });
+    const { error: ownerError } = await members.insert({ group_id: groupId, member_id: creatorId, role: "owner" });
     if (ownerError) throw new Error(`GROUP_OWNER_SETUP_FAILED:${String((ownerError as { message?: string }).message ?? ownerError)}`);
+    const { data: inserted, error: selectError } = await groups
+      .select("id, owner_id, kind, title, description, avatar_url, invite_slug, slow_mode_seconds, members_can_invite, created_at")
+      .eq("id", groupId)
+      .single();
+    if (selectError || !inserted) throw new Error(`GROUP_READBACK_FAILED:${String((selectError as { message?: string })?.message ?? selectError)}`);
     rawGroup = inserted;
   }
   const group = rawGroup as GroupRow;

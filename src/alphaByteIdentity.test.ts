@@ -193,4 +193,24 @@ describe("Alpha Byte imported-project identity", () => {
     expect(group).toContain("h-full");
     expect(group).not.toContain("h-[100dvh]");
   });
+
+  it("keeps community creation and message actions usable without exposing forwarding metadata", async () => {
+    const [groups, chat, stickers] = await Promise.all([
+      readFile(path.join(root, "lib/groups.ts"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
+      readFile(path.join(root, "lib/premium-stickers.ts"), "utf8"),
+    ]);
+
+    expect(groups).toContain("nextGroupId");
+    expect(groups).toContain(".insert({ id: groupId");
+    expect(groups).toContain("GROUP_OWNER_SETUP_FAILED");
+    expect(groups).toContain("GROUP_READBACK_FAILED");
+    expect(chat).toContain("startMessageGesture");
+    expect(chat).toContain("horizontalDistance >= 56");
+    expect(chat).toContain("DrawerContent");
+    expect(chat).toContain("_alphaByteForwarded");
+    expect(chat).toContain("محولة من");
+    expect(stickers).toContain("bytey-crown");
+    expect(stickers).toContain("bytey-ninja");
+  });
 });

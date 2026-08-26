@@ -214,3 +214,9 @@
 - [x] Restore independent vertical scrolling in Settings and all non-chat authenticated screens without allowing the page shell to overflow.
 - [x] Repair the chat list and direct-chat layout so the conversation content fills the phone viewport without a half-black region.
 - [x] Add regression coverage, verify mobile rendering, rebuild the Android user APK, and send the corrected APK to Telegram.
+- [x] Reproduce and repair live group and channel creation against the configured Supabase functions, including truthful user-facing errors.
+- [x] Implement horizontal swipe-to-reply in direct chats, preserving the reply target inside the same encrypted conversation.
+- [x] Replace visible per-message action buttons with an accessible long-press action menu for reply, edit, forward, and delete where authorized.
+- [x] Preserve sender/source attribution when forwarding a message without exposing the plaintext to the server.
+- [x] Expand bundled original premium stickers into 35 distinct, display-safe expressive assets and integrate them in reactions and profile selection.
+- [ ] Add regression coverage, build the Android user APK, send it to Telegram, and synchronize sanitized source to GitHub.

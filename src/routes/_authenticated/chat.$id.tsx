@@ -28,6 +28,7 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import {
   Select,
   SelectContent,
@@ -77,6 +78,26 @@ interface Row {
   reply_to: string | null;
   edited: boolean;
   reactions: Record<string, string>;
+}
+
+type ForwardedMessage = { _alphaByteForwarded: true; text: string; source: string };
+
+function readForwardedMessage(value: string): ForwardedMessage | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      (parsed as Record<string, unknown>)["_alphaByteForwarded"] === true &&
+      typeof (parsed as Record<string, unknown>)["text"] === "string" &&
+      typeof (parsed as Record<string, unknown>)["source"] === "string"
+    ) {
+      return parsed as ForwardedMessage;
+    }
+  } catch {
+    // Plain text and encrypted attachment descriptors are not forwarded-message envelopes.
+  }
+  return null;
 }
 
 const TTL_OPTIONS = [0, 10, 60, 3600, 86400, 604800];
@@ -200,6 +221,7 @@ function ChatPage() {
   const [typingName, setTypingName] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [actionRow, setActionRow] = useState<Row | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const nativeRecordingRef = useRef(false);
@@ -210,6 +232,8 @@ function ChatPage() {
   const remoteTypingTimerRef = useRef<number | null>(null);
   const wasAtBottomRef = useRef(true);
   const lastVisibleCountRef = useRef(0);
+  const holdTimerRef = useRef<number | null>(null);
+  const gestureRef = useRef<{ row: Row; x: number; y: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -402,7 +426,8 @@ function ChatPage() {
   }
 
   async function openForward(row: Row) {
-    if (row.kind !== "text" || !plain[row.id]) { toast.error("تحويل المرفقات غير متاح حاليًا؛ اختر رسالة نصية."); return; }
+    const text = readForwardedMessage(plain[row.id] ?? "")?.text ?? plain[row.id];
+    if (row.kind !== "text" || !text) { toast.error("تحويل المرفقات غير متاح حاليًا؛ اختر رسالة نصية."); return; }
     const conversations = (await listConversations(userId)) as Array<{ id: string; user_a: string; user_b: string }>;
     const peerIds = conversations.map((conversation) => (conversation.user_a === userId ? conversation.user_b : conversation.user_a));
     if (!peerIds.length) { toast.error("لا توجد محادثات أخرى للتحويل إليها."); return; }
@@ -417,11 +442,46 @@ function ChatPage() {
   async function forwardTo(target: { id: string; title: string; publicKey: string | null }) {
     if (!forwardRow || !target.publicKey || !vault) return;
     const targetKey = await deriveConversationKey(vault.identityPrivateKey, target.publicKey, target.id);
-    const payload = await encryptWithKey(targetKey, plain[forwardRow.id] ?? "");
+    const original = readForwardedMessage(plain[forwardRow.id] ?? "");
+    const source = original?.source ?? (forwardRow.sender_id === userId ? "أنت" : peer?.display_name || peer?.username || "جهة الاتصال");
+    const payload = await encryptWithKey(targetKey, JSON.stringify({ _alphaByteForwarded: true, text: original?.text ?? plain[forwardRow.id] ?? "", source } satisfies ForwardedMessage));
     const { error } = await supabase.from("messages").insert({ conversation_id: target.id, sender_id: userId, encrypted_payload: payload.ciphertext, iv: payload.iv, kind: "text", reply_to: null, expires_at: null }).select("id").single();
     if (error) { toast.error("تعذر تحويل الرسالة."); return; }
     setForwardRow(null);
     toast.success(`تم تحويل الرسالة إلى ${target.title}`);
+  }
+
+  function clearMessageGesture() {
+    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+  }
+
+  function startMessageGesture(event: React.PointerEvent<HTMLDivElement>, row: Row) {
+    if (event.pointerType === "mouse" || (event.target as HTMLElement).closest("button, a, input, textarea")) return;
+    clearMessageGesture();
+    gestureRef.current = { row, x: event.clientX, y: event.clientY };
+    holdTimerRef.current = window.setTimeout(() => {
+      setActionRow(row);
+      clearMessageGesture();
+    }, 440);
+  }
+
+  function trackMessageGesture(event: React.PointerEvent<HTMLDivElement>) {
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+    if (Math.abs(event.clientX - gesture.x) > 12 || Math.abs(event.clientY - gesture.y) > 12) clearMessageGesture();
+  }
+
+  function endMessageGesture(event: React.PointerEvent<HTMLDivElement>) {
+    const gesture = gestureRef.current;
+    gestureRef.current = null;
+    if (!gesture) return;
+    const horizontalDistance = Math.abs(event.clientX - gesture.x);
+    clearMessageGesture();
+    if (horizontalDistance >= 56) {
+      setReplyTo(gesture.row);
+      setReactionPickerFor(null);
+    }
   }
 
   async function toggleRecording() {
@@ -507,16 +567,18 @@ function ChatPage() {
         {!key && <p className="rounded-2xl border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">{t("chat.decryptFailed")}</p>}
         {visible.map((row) => {
           const mine = row.sender_id === userId;
+          const forwarded = readForwardedMessage(plain[row.id] ?? "");
+          const messageText = forwarded?.text ?? plain[row.id] ?? "…";
           let descriptor: AttachmentDescriptor | null = null;
           try {
-            const parsed: unknown = JSON.parse(plain[row.id] ?? "");
+            const parsed: unknown = JSON.parse(messageText);
             if (isAttachmentDescriptor(parsed)) descriptor = parsed;
           } catch { /* A text message is not JSON. */ }
           const repliedRow = row.reply_to ? rows.find((item) => item.id === row.reply_to) : null;
-          return <div key={row.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div id={`message-${row.id}`} className={cn("group w-fit min-w-0 max-w-[82%] rounded-2xl px-3.5 py-2 text-sm shadow-sm", mine ? "brand-bg text-primary-foreground" : "border border-border glass")}>
+          return <div key={row.id} className={cn("flex touch-pan-y", mine ? "justify-end" : "justify-start")} onPointerDown={(event) => startMessageGesture(event, row)} onPointerMove={trackMessageGesture} onPointerUp={endMessageGesture} onPointerCancel={() => { clearMessageGesture(); gestureRef.current = null; }}><div id={`message-${row.id}`} className={cn("group w-fit min-w-0 max-w-[82%] rounded-2xl px-3.5 py-2 text-sm shadow-sm", mine ? "brand-bg text-primary-foreground" : "border border-border glass")}>
             {repliedRow && <button type="button" onClick={() => document.getElementById(`message-${repliedRow.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })} className="mb-2 block w-full border-s-2 border-current/60 ps-2 text-start text-[11px] opacity-75"><span className="block font-semibold">رد على رسالة</span><span className="block truncate">{plain[repliedRow.id] ?? "…"}</span></button>}
-            {editingRow?.id === row.id ? <div className="flex gap-2"><Input value={editDraft} onChange={(event) => setEditDraft(event.target.value)} autoFocus className="min-w-0 text-sm" /><Button type="button" size="sm" onClick={() => void saveEdit()}>حفظ</Button><Button type="button" size="sm" variant="ghost" onClick={() => setEditingRow(null)}>إلغاء</Button></div> : descriptor ? <AttachmentPreview descriptor={descriptor} /> : <p className="whitespace-pre-wrap break-words">{plain[row.id] ?? "…"}</p>}
-            <div className="mt-1 flex items-center gap-2 text-[10px] opacity-70"><span>{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{row.edited && <span>معدّلة</span>}{row.expires_at && <Timer className="h-3 w-3" />}{mine && (row.read_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تمت القراءة" /> : row.delivered_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تم التسليم" /> : <Check className="h-3.5 w-3.5" aria-label="تم الإرسال" />)}<button type="button" onClick={() => setReplyTo(row)} aria-label="رد على الرسالة"><Reply className="h-3 w-3" /></button><button type="button" onClick={() => setReactionPickerFor(reactionPickerFor === row.id ? null : row.id)} aria-label="تفاعل بملصق مميز"><Sparkles className="h-3 w-3" /></button>{row.kind === "text" && <button type="button" onClick={() => void openForward(row)} aria-label="تحويل الرسالة"><Forward className="h-3 w-3" /></button>}{mine && row.kind === "text" && <button type="button" onClick={() => beginEdit(row)} aria-label="تعديل الرسالة"><Pencil className="h-3 w-3" /></button>}{mine && <button type="button" onClick={() => void removeMessage(row.id)} aria-label={t("chat.delete")}><Trash2 className="h-3 w-3" /></button>}</div>
+            {editingRow?.id === row.id ? <div className="flex gap-2"><Input value={editDraft} onChange={(event) => setEditDraft(event.target.value)} autoFocus className="min-w-0 text-sm" /><Button type="button" size="sm" onClick={() => void saveEdit()}>حفظ</Button><Button type="button" size="sm" variant="ghost" onClick={() => setEditingRow(null)}>إلغاء</Button></div> : descriptor ? <AttachmentPreview descriptor={descriptor} /> : <><>{forwarded && <p className="mb-1 flex items-center gap-1 text-[10px] font-medium opacity-70"><Forward className="h-3 w-3" />محولة من {forwarded.source}</p>}</><p className="whitespace-pre-wrap break-words">{messageText}</p></>}
+            <div className="mt-1 flex items-center gap-2 text-[10px] opacity-70"><span>{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{row.edited && <span>معدّلة</span>}{row.expires_at && <Timer className="h-3 w-3" />}{mine && (row.read_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تمت القراءة" /> : row.delivered_at ? <CheckCheck className="h-3.5 w-3.5" aria-label="تم التسليم" /> : <Check className="h-3.5 w-3.5" aria-label="تم الإرسال" />)}</div>
             {Object.values(row.reactions ?? {}).length > 0 && <div className="mt-2 flex flex-wrap gap-1">{Array.from(new Set(Object.values(row.reactions ?? {}))).map((stickerId) => { const sticker = getPremiumSticker(stickerId); return sticker ? <img key={sticker.id} src={sticker.src} alt={sticker.label} className="premium-sticker-motion h-7 w-7 rounded-lg bg-background/80 p-0.5 shadow-sm" /> : null; })}</div>}
             {reactionPickerFor === row.id && <div className="mt-2 flex gap-1 rounded-xl border border-current/15 bg-background/90 p-1.5 text-foreground shadow-lg">{PREMIUM_STICKERS.map((sticker) => <button key={sticker.id} type="button" onClick={() => void setPremiumReaction(row, sticker.id)} className="rounded-lg p-1 press" aria-label={sticker.label}><img src={sticker.src} alt="" className="premium-sticker-motion h-7 w-7" /></button>)}</div>}
           </div></div>;
@@ -540,6 +602,19 @@ function ChatPage() {
       </form>
 
       {forwardRow && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="تحويل الرسالة" onClick={() => setForwardRow(null)}><div className="w-full max-w-sm rounded-3xl border border-border bg-background p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><h2 className="font-bold">تحويل الرسالة إلى</h2><button type="button" onClick={() => setForwardRow(null)} aria-label="إغلاق"><X className="h-5 w-5" /></button></div>{forwardTargets.length ? <div className="space-y-2">{forwardTargets.map((target) => <button type="button" key={target.id} onClick={() => void forwardTo(target)} className="flex w-full items-center gap-3 rounded-2xl border border-border px-3 py-3 text-start press"><Forward className="h-4 w-4 text-primary" /><span className="truncate">{target.title}</span></button>)}</div> : <p className="text-sm text-muted-foreground">لا توجد محادثات أخرى مفاتيحها متاحة.</p>}</div></div>}
+
+      <Drawer open={Boolean(actionRow)} onOpenChange={(open) => { if (!open) setActionRow(null); }}>
+        <DrawerContent dir="rtl" className="rounded-t-3xl">
+          <DrawerHeader className="pb-2 text-right"><DrawerTitle className="text-base">إجراءات الرسالة</DrawerTitle></DrawerHeader>
+          <div className="space-y-1 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm press" onClick={() => { if (actionRow) setReplyTo(actionRow); setActionRow(null); }}><Reply className="h-4 w-4 text-primary" />رد</button>
+            {actionRow?.kind === "text" && <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm press" onClick={() => { if (actionRow) { void openForward(actionRow); setActionRow(null); } }}><Forward className="h-4 w-4 text-primary" />تحويل</button>}
+            {actionRow && <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm press" onClick={() => { setReactionPickerFor(actionRow.id); setActionRow(null); }}><Sparkles className="h-4 w-4 text-primary" />تفاعل بملصق</button>}
+            {actionRow?.sender_id === userId && actionRow.kind === "text" && !readForwardedMessage(plain[actionRow.id] ?? "") && <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm press" onClick={() => { if (actionRow) beginEdit(actionRow); setActionRow(null); }}><Pencil className="h-4 w-4 text-primary" />تعديل</button>}
+            {actionRow?.sender_id === userId && <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm text-destructive press" onClick={() => { if (actionRow) void removeMessage(actionRow.id); setActionRow(null); }}><Trash2 className="h-4 w-4" />حذف</button>}
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       {profileOpen && peer && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="ملف الشخص" onClick={() => setProfileOpen(false)}>
         <div className="w-full max-w-sm rounded-3xl border border-border bg-background p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>

@@ -134,6 +134,9 @@ function ChatsPage() {
       else if (message.includes("GROUP_KEY_ENVELOPE_FAILED")) toast.error("تم إنشاء المساحة لكن تعذر حفظ مفتاحها المشفّر. أعد المحاولة بعد تحديث الجلسة.");
       else if (message.includes("GROUP_RPC_EMPTY")) toast.error("الخادم لم يُرجع بيانات القناة. تحقّق من تطبيق ترحيل المجموعات ثم أعد المحاولة.");
       else if (message.includes("GROUP_RPC_FAILED")) toast.error(`تعذر إنشاء القناة: ${message.replace("GROUP_RPC_FAILED:", "")}`);
+      else if (message.includes("GROUP_CREATION_FAILED")) toast.error("تعذر حفظ المجموعة. أعد تسجيل الدخول مرة واحدة ثم حاول الإنشاء من جديد.");
+      else if (message.includes("GROUP_OWNER_SETUP_FAILED")) toast.error("تم حفظ المجموعة ولكن لم تُمنح عضوية المالك. أعد المحاولة بعد تحديث الجلسة.");
+      else if (message.includes("GROUP_READBACK_FAILED")) toast.error("تم إعداد المجموعة ولكن تعذر فتحها. حدّث قائمة المحادثات ثم أعد فتحها.");
       else toast.error("تعذر إنشاء المجموعة أو القناة. تحقق من الاتصال ثم أعد المحاولة.");
     } finally {
       setCreatingGroup(false);
