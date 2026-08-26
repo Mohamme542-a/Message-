@@ -107,7 +107,7 @@ function ContactsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-6">
+    <div className="page-scroll mx-auto max-w-lg px-4 pb-8 pt-6">
       <h1 className="mb-1 text-2xl font-bold">{t("contacts.title")}</h1>
       <p className="mb-4 text-xs text-muted-foreground">{t("contacts.noUpload")}</p>
 

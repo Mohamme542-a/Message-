@@ -212,7 +212,7 @@ function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 px-4 pt-6">
+    <div className="page-scroll mx-auto max-w-lg space-y-6 px-4 pb-8 pt-6">
       <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
 
       <section className="rounded-3xl border border-border glass p-5">

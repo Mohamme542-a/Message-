@@ -172,12 +172,12 @@ function AdminPage() {
   }
 
   if (isLoading) {
-    return <p className="p-10 text-center text-sm text-muted-foreground">{t("common.loading")}</p>;
+    return <p className="page-scroll p-10 text-center text-sm text-muted-foreground">{t("common.loading")}</p>;
   }
 
   if (!isAdmin) {
     return (
-      <div className="mx-auto max-w-lg px-4 pt-16 text-center">
+      <div className="page-scroll mx-auto max-w-lg px-4 pb-8 pt-16 text-center">
         <ShieldAlert className="mx-auto h-9 w-9 text-destructive" />
         <p className="mt-3 font-semibold">{t("admin.denied")}</p>
         {isAdminEdition ? (
@@ -194,7 +194,7 @@ function AdminPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-6">
+    <div className="page-scroll mx-auto max-w-lg px-4 pb-8 pt-6">
       <header className="mb-4 flex items-center gap-3">
         {!isAdminEdition && (
           <Link to="/settings" className="rounded-full p-1.5 text-muted-foreground press">

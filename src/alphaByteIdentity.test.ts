@@ -167,4 +167,30 @@ describe("Alpha Byte imported-project identity", () => {
     expect(capacitorConfig).toContain("AB_APP_EDITION");
     expect(capacitorConfig).toContain("Com.qarfash.admin");
   });
+
+  it("uses one viewport owner and explicit scroll containers for phone pages", async () => {
+    const [styles, shell, settings, chats, calls, contacts, devices, security, profile, group] = await Promise.all([
+      readFile(path.join(root, "styles.css"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/route.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/settings.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/chats.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/calls.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/contacts.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/devices.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/security.$id.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/profile.$id.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/group.$id.tsx"), "utf8"),
+    ]);
+
+    expect(styles).toContain("#root");
+    expect(styles).toContain("@utility page-scroll");
+    expect(styles).toContain("height: 100dvh");
+    expect(styles).toContain("overflow-y: auto");
+    expect(shell).toContain('className="app-shell flex min-h-0 flex-col overflow-hidden bg-background"');
+    for (const page of [settings, chats, calls, contacts, devices, security, profile]) {
+      expect(page).toContain("page-scroll");
+    }
+    expect(group).toContain("h-full");
+    expect(group).not.toContain("h-[100dvh]");
+  });
 });

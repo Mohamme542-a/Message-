@@ -47,7 +47,7 @@ function DevicesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-6">
+    <div className="page-scroll mx-auto max-w-lg px-4 pb-8 pt-6">
       <header className="mb-4 flex items-center gap-3">
         <Link to="/settings" className="rounded-full p-1.5 text-muted-foreground press">
           <ArrowRight className="h-5 w-5" />

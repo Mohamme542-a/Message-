@@ -198,7 +198,7 @@ function GroupPage() {
   }
 
   return (
-    <div className="mx-auto flex h-[100dvh] min-h-0 max-w-lg flex-col overflow-hidden">
+    <div className="chat-shell mx-auto flex h-full min-h-0 w-full max-w-lg flex-col overflow-hidden">
       <header className="safe-top flex shrink-0 items-center gap-3 border-b border-border glass px-4 py-3">
         <Link to="/chats" className="rounded-full p-1.5 text-muted-foreground press"><ArrowRight className="h-5 w-5" /></Link>
         {group?.avatar_url ? <img src={group.avatar_url} alt="" className="h-10 w-10 rounded-2xl object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-2xl brand-bg text-primary-foreground"><Users className="h-5 w-5" /></span>}

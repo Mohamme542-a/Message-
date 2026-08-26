@@ -141,7 +141,7 @@ function ChatsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 pt-5 sm:px-6 sm:pt-6">
+    <div className="page-scroll mx-auto w-full max-w-2xl px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
       <header className="mb-4 flex items-center justify-between gap-3">
         <div className="min-w-0"><h1 className="text-2xl font-bold">{t("chats.title")}</h1><span className="mt-1 flex w-fit items-center gap-1 text-[11px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-primary" />{t("chat.encrypted")}</span></div>
         <Button type="button" size="icon" className="shrink-0 rounded-2xl" onClick={() => setGroupDialogOpen(true)} aria-label="إنشاء مجموعة أو قناة"><Plus className="h-5 w-5" /></Button>

@@ -52,7 +52,7 @@ function SecurityCenter() {
   ];
 
   return (
-    <div className="mx-auto max-w-lg px-4 pb-10 pt-4">
+    <div className="page-scroll mx-auto max-w-lg px-4 pb-10 pt-4">
       <header className="mb-5 flex items-center gap-3">
         <Link to="/chat/$id" params={{ id }} className="rounded-full p-1.5 text-muted-foreground press">
           <ArrowRight className="h-5 w-5" />

@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/calls")({
 function CallsPage() {
   const { t } = useI18n();
   return (
-    <div className="mx-auto max-w-lg px-4 pt-6">
+    <div className="page-scroll mx-auto max-w-lg px-4 pb-8 pt-6">
       <h1 className="mb-4 text-2xl font-bold">{t("calls.title")}</h1>
       <div className="rounded-3xl border border-border glass p-8 text-center">
         <PhoneOff className="mx-auto h-8 w-8 text-muted-foreground" />

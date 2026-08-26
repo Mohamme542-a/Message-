@@ -55,11 +55,11 @@ function ProfilePage() {
     else toast.success("تم إرسال البلاغ.");
   }
 
-  if (isLoading) return <div className="mx-auto max-w-lg p-6 text-center text-sm text-muted-foreground">جارٍ فتح الملف…</div>;
-  if (!profile) return <div className="mx-auto max-w-lg p-6 text-center text-sm text-muted-foreground">الملف غير متاح.</div>;
+  if (isLoading) return <div className="page-scroll mx-auto max-w-lg p-6 text-center text-sm text-muted-foreground">جارٍ فتح الملف…</div>;
+  if (!profile) return <div className="page-scroll mx-auto max-w-lg p-6 text-center text-sm text-muted-foreground">الملف غير متاح.</div>;
 
   return (
-    <div className="mx-auto min-h-[100dvh] max-w-lg bg-background pb-8">
+    <div className="page-scroll mx-auto max-w-lg bg-background pb-8">
       <header className="safe-top flex items-center px-4 py-3"><Link to="/chats" className="rounded-full p-2 text-muted-foreground press" aria-label="رجوع"><ArrowRight className="h-5 w-5" /></Link><span className="ms-3 text-sm font-semibold">الملف الشخصي</span></header>
       <section className="px-5 pb-5 pt-6 text-center">
         {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="mx-auto h-28 w-28 rounded-[2rem] object-cover shadow-lg" /> : <span className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2rem] brand-bg text-3xl font-bold text-primary-foreground shadow-lg">{(profile.display_name || profile.username || "?").slice(0, 2).toUpperCase()}</span>}

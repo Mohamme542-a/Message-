@@ -193,7 +193,7 @@
 - [x] Reposition the Android message composer to match standard messaging-app keyboard and safe-area behavior.
 - [x] Raise the idle message composer above the Android bottom navigation before the keyboard opens.
 - [x] Diagnose and repair live group/channel creation and subscription-code RPC failures with verifiable error handling.
-- [ ] Repair Android microphone capture with native permission and WebView-compatible fallback handling.
+- [x] Repair Android microphone capture with native permission and WebView-compatible fallback handling.
 - [x] Create and link a professional Telegram-style user profile screen from chats and conversations.
 - [x] Add an original premium animated-sticker pack with paid reactions and eligible profile-avatar use.
 - [x] Replace external premium-sticker image URLs with original bundled SVG assets that render inside the Android WebView.
@@ -204,9 +204,13 @@
 - [x] Fix Android page-shell overflow so settings, chats, and bottom navigation stay inside the viewport.
 - [x] Fix premium sticker rendering so each sticker displays its actual distinct asset rather than a fallback image.
 - [x] Inspect the linked Lovable project for database and UI mismatches and document any changes that must be synchronized.
-- [ ] Send the APK built from the latest shell and sticker fixes to the designated Telegram bot.
+- [x] Send the APK built from the latest shell and sticker fixes to the designated Telegram bot.
 - [x] Send a Lovable follow-up requesting a full regression pass over every known Alpha Byte issue before accepting any generated fix.
 - [x] Run a fresh local regression diagnosis for Android viewport, composer, chat list, media/sticker rendering, group/channel RPC, subscription-code RPC, microphone recording, and notifications.
 - [x] Apply and validate local fixes for every reproducible Alpha Byte user and admin defect without relying on unfinished Lovable changes.
 - [x] Run TypeScript, Vitest, web build, and Android builds for the corrected user and admin applications; audit that package identifiers remain separate.
-- [ ] Send the verified updated Alpha Byte User and Alpha Byte Admin APKs to the designated Telegram chat, then synchronize sanitized source to GitHub.
+- [x] Send the verified updated Alpha Byte User and Alpha Byte Admin APKs to the designated Telegram chat, then synchronize sanitized source to GitHub.
+- [x] Compare Alpha Byte viewport measurements with the linked Lovable project and identify the source of the black chat-area split on Android.
+- [x] Restore independent vertical scrolling in Settings and all non-chat authenticated screens without allowing the page shell to overflow.
+- [x] Repair the chat list and direct-chat layout so the conversation content fills the phone viewport without a half-black region.
+- [x] Add regression coverage, verify mobile rendering, rebuild the Android user APK, and send the corrected APK to Telegram.
