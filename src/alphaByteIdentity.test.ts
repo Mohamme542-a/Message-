@@ -143,7 +143,7 @@ describe("Alpha Byte imported-project identity", () => {
     expect(push).not.toContain("LocalNotifications.schedule");
     expect(groups).toContain("create_group");
     expect(groups).toContain("group_key_envelopes");
-    expect(groups).toContain("const ownerId = group.owner_id || creatorId");
+    expect(groups).toContain("GROUP_RPC_FAILED");
     expect(groupCrypto).toContain("sealGroupKeyForMember");
     expect(groupCrypto).toContain("openGroupKeyForMember");
     expect(groupRoute).toContain("إدارة الأعضاء");
@@ -201,10 +201,10 @@ describe("Alpha Byte imported-project identity", () => {
       readFile(path.join(root, "lib/premium-stickers.ts"), "utf8"),
     ]);
 
-    expect(groups).toContain("nextGroupId");
-    expect(groups).toContain(".insert({ id: groupId");
-    expect(groups).toContain("GROUP_OWNER_SETUP_FAILED");
-    expect(groups).toContain("GROUP_READBACK_FAILED");
+    expect(groups).toContain('rpc("create_group"');
+    expect(groups).toContain("GROUP_RPC_FAILED");
+    expect(groups).toContain("group_key_envelopes");
+    expect(groups).not.toContain("nextGroupId");
     expect(chat).toContain("startMessageGesture");
     expect(chat).toContain("horizontalDistance >= 56");
     expect(chat).toContain("DrawerContent");

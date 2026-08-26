@@ -219,4 +219,5 @@
 - [x] Replace visible per-message action buttons with an accessible long-press action menu for reply, edit, forward, and delete where authorized.
 - [x] Preserve sender/source attribution when forwarding a message without exposing the plaintext to the server.
 - [x] Expand bundled original premium stickers into 35 distinct, display-safe expressive assets and integrate them in reactions and profile selection.
-- [ ] Add regression coverage, build the Android user APK, send it to Telegram, and synchronize sanitized source to GitHub.
+- [x] Add regression coverage, build the Android user APK, send it to Telegram, and synchronize sanitized source to GitHub.
+- [ ] Compare the pre-Lovable working group/channel creation implementation with the current source, restore its reliable transaction order, and verify it before delivering a replacement APK.
