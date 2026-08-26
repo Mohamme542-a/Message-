@@ -78,7 +78,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         window.matchMedia("(prefers-color-scheme: dark)").matches);
     root.classList.toggle("dark", dark);
     root.dataset["accent"] = settings.accentColor;
-  }, [settings.theme, settings.accentColor]);
+    root.dataset["premiumChatStyle"] = settings.premiumChatStyle;
+    root.dataset["premiumAvatarFrame"] = settings.premiumAvatarFrame ? "on" : "off";
+  }, [settings.theme, settings.accentColor, settings.premiumChatStyle, settings.premiumAvatarFrame]);
 
   const updateSettings = useCallback((patch: Partial<LocalSettings>) => {
     setSettings((prev) => {

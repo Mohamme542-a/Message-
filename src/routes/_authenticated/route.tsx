@@ -9,6 +9,7 @@ import { useSession } from "@/lib/session";
 import { isAdminEdition } from "@/lib/app-edition";
 import { cn } from "@/lib/utils";
 import { registerPushNotifications } from "@/lib/push-notifications";
+import { writePresence } from "@/lib/presence";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +60,22 @@ function AuthenticatedShell() {
   }, [session?.user.id, vault?.deviceId]);
 
   useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId || isAdminEdition) return;
+    let timer: number | undefined;
+    const mark = (online: boolean) => { void writePresence(userId, online); };
+    const start = () => { mark(true); timer = window.setInterval(() => mark(true), 30_000); };
+    const stop = () => { if (timer) window.clearInterval(timer); timer = undefined; mark(false); };
+    const onVisibility = () => { if (document.visibilityState === "visible") start(); else stop(); };
+    const onAppState = ({ isActive }: { isActive: boolean }) => { if (isActive) start(); else stop(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    let removeAppListener: (() => Promise<void>) | undefined;
+    if (Capacitor.isNativePlatform()) void App.addListener("appStateChange", onAppState).then((handle) => { removeAppListener = () => handle.remove(); });
+    start();
+    return () => { document.removeEventListener("visibilitychange", onVisibility); if (timer) window.clearInterval(timer); if (removeAppListener) void removeAppListener(); mark(false); };
+  }, [session?.user.id]);
+
+  useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     let disposed = false;
@@ -100,12 +117,12 @@ function AuthenticatedShell() {
   ] as const;
 
   return (
-    <div className="app-shell flex min-h-screen flex-col bg-background">
-      <div className={cn("flex-1", !hideNav && "pb-20")}>
+    <div className="app-shell flex min-h-0 flex-col overflow-hidden bg-background">
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         <Outlet />
       </div>
       {!hideNav && (
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border glass">
+        <nav className="z-40 shrink-0 border-t border-border pb-[env(safe-area-inset-bottom)] glass">
           <ul className="mx-auto flex max-w-lg items-stretch">
             {items.map((item) => {
               const active = pathname.startsWith(item.to);

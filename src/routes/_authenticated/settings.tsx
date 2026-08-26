@@ -32,7 +32,8 @@ import { createRecoveryBackup, disablePin, enablePin } from "@/lib/vault";
 import { generateRecoveryCode } from "@/lib/crypto";
 import { uploadProfileAvatar } from "@/lib/profile-media";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-import { redeemSubscriptionCode } from "@/lib/subscriptions";
+import { redeemSubscriptionCode, subscriptionErrorMessage } from "@/lib/subscriptions";
+import { PREMIUM_STICKERS } from "@/lib/premium-stickers";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   ssr: false,
@@ -114,6 +115,20 @@ function SettingsPage() {
     }
   }
 
+  async function choosePremiumSticker(stickerUrl: string) {
+    if (!profile?.premium_until || new Date(profile.premium_until).getTime() <= Date.now()) {
+      toast.error("صور الملصقات المتحركة متاحة مع الاشتراك.");
+      return;
+    }
+    const { error } = await supabase.from("profiles").update({ avatar_url: stickerUrl }).eq("id", userId);
+    if (error) {
+      toast.error("تعذر حفظ الملصق كصورة ملف.");
+      return;
+    }
+    toast.success("تم اختيار صورة الملف المميزة.");
+    await queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+  }
+
   async function redeemCode() {
     if (!subscriptionCode.trim() || redeeming) return;
     setRedeeming(true);
@@ -122,11 +137,21 @@ function SettingsPage() {
       setSubscriptionCode("");
       toast.success("تم تفعيل الاشتراك.");
       await queryClient.invalidateQueries({ queryKey: ["profile", userId] });
-    } catch {
-      toast.error("هذا الكود غير متاح.");
+    } catch (error) {
+      toast.error(subscriptionErrorMessage(error));
     } finally {
       setRedeeming(false);
     }
+  }
+
+  const premiumActive = Boolean(profile?.premium_until && new Date(profile.premium_until).getTime() > Date.now());
+
+  function requirePremium(action: () => void) {
+    if (!premiumActive) {
+      toast.error("هذه الميزة متاحة مع الاشتراك المفعّل.");
+      return;
+    }
+    action();
   }
 
   async function togglePrivacy(field: PrivacyField, value: boolean) {
@@ -221,6 +246,17 @@ function SettingsPage() {
             />
           </div>
         </div>
+        <div className="mb-4 rounded-2xl border border-border bg-muted/30 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold"><TicketCheck className="h-3.5 w-3.5 text-primary" />ملصقات الملف المميزة</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {PREMIUM_STICKERS.map((sticker) => (
+              <button key={sticker.id} type="button" onClick={() => void choosePremiumSticker(sticker.src)} className="shrink-0 rounded-xl border border-border bg-background p-1.5 press" aria-label={sticker.label}>
+                <img src={sticker.src} alt={sticker.label} className="premium-sticker-motion h-11 w-11" />
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">متاحة لحسابات الاشتراك المفعّلة.</p>
+        </div>
         <Label className="text-xs">{t("settings.displayName")}</Label>
         <Input className="mt-1" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         <Label className="mt-3 block text-xs">{t("settings.bio")}</Label>
@@ -234,6 +270,26 @@ function SettingsPage() {
         <h2 className="flex items-center gap-2 text-sm font-semibold"><TicketCheck className="h-4 w-4 text-primary" />الاشتراك</h2>
         <p className="mt-2 text-xs text-muted-foreground">{profile?.premium_until && new Date(profile.premium_until).getTime() > Date.now() ? `مفعّل حتى ${new Date(profile.premium_until).toLocaleDateString()}` : "أدخل كودًا صادرًا من الإدارة لتفعيل المزايا الإضافية."}</p>
         <div className="mt-3 flex gap-2"><Input value={subscriptionCode} onChange={(event) => setSubscriptionCode(event.target.value.toUpperCase())} placeholder="AB-XXXXXXXX" autoCapitalize="characters" /><Button type="button" disabled={!subscriptionCode.trim() || redeeming} onClick={() => void redeemCode()}>{redeeming ? "…" : "تفعيل"}</Button></div>
+      </section>
+
+      <section className="rounded-3xl border border-primary/20 bg-primary/5 p-5">
+        <h2 className="flex items-center gap-2 text-sm font-semibold"><Palette className="h-4 w-4 text-primary" />مزايا Alpha Byte المميزة</h2>
+        <p className="mt-2 text-xs text-muted-foreground">أدوات قابلة للتخصيص تُحفظ على جهازك ولا تغيّر تشفير الرسائل.</p>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {([['classic', 'كلاسيكي'], ['midnight', 'ليلي'], ['ocean', 'محيطي']] as const).map(([value, label]) => (
+            <Button key={value} type="button" size="sm" variant={settings.premiumChatStyle === value ? "default" : "outline"} onClick={() => requirePremium(() => updateSettings({ premiumChatStyle: value }))}>{label}</Button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-between rounded-2xl border border-border bg-background/60 px-3 py-3 text-sm">
+          <span><span className="block font-medium">إطار صورة مميز</span><span className="block text-[11px] text-muted-foreground">حلقة متحركة حول صورك داخل التطبيق.</span></span>
+          <Switch checked={settings.premiumAvatarFrame} onCheckedChange={(value) => requirePremium(() => updateSettings({ premiumAvatarFrame: value }))} />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+          <div className="rounded-xl bg-background/60 p-2">معاينة صور وملصقات مميزة</div>
+          <div className="rounded-xl bg-background/60 p-2">تفاعل ملصقات على الرسائل</div>
+          <div className="rounded-xl bg-background/60 p-2">ثيم محادثة خاص</div>
+          <div className="rounded-xl bg-background/60 p-2">حدود ملف شخصية متحركة</div>
+        </div>
       </section>
 
       <section className="rounded-3xl border border-border glass p-5">

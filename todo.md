@@ -177,3 +177,36 @@
 - [x] Diagnose and repair the video-send failure shown in the supplied recording.
 - [x] Verify, build, and deliver a separate sanitized Android APK for Alpha Byte administration.
 - [x] Fix the Alpha Byte Admin APK so it installs beside, rather than replaces, the Alpha Byte user APK.
+- [x] Send the corrected standalone Alpha Byte Admin APK to the user-provided Telegram chat without exposing the bot token.
+- [x] Verify the Alpha Byte account ret@ and grant it the admin role only after exact username confirmation (superseded by exact username ret; admin role verified).
+- [x] Verify the corrected username ret and grant it the admin role only if the matching account exists.
+- [x] Repair subscription-code creation and redemption flow with clear admin errors and successful persistence.
+- [x] Keep the message composer fixed at the bottom while scrolling through conversation history.
+- [x] Show verified badge beside verified conversation participants and open their profile from the conversation header.
+- [x] Add truthful online/offline presence and last-active timestamps to conversations and profiles.
+- [x] Repair group and channel creation so the builder opens, validates input, and reports success or failure.
+- [x] Build current Alpha Byte user and admin APKs and send both to the user-designated Telegram bot without secrets or signing material.
+- [x] Diagnose and fix the real backend error preventing channel and group creation, and surface subscription-code failures accurately.
+- [x] Raise the fixed message composer slightly above the bottom safe area.
+- [x] Add encrypted message editing after send with an explicit edited state.
+- [x] Add secure message forwarding from one conversation to another.
+- [x] Reposition the Android message composer to match standard messaging-app keyboard and safe-area behavior.
+- [x] Raise the idle message composer above the Android bottom navigation before the keyboard opens.
+- [x] Diagnose and repair live group/channel creation and subscription-code RPC failures with verifiable error handling.
+- [ ] Repair Android microphone capture with native permission and WebView-compatible fallback handling.
+- [x] Create and link a professional Telegram-style user profile screen from chats and conversations.
+- [x] Add an original premium animated-sticker pack with paid reactions and eligible profile-avatar use.
+- [x] Replace external premium-sticker image URLs with original bundled SVG assets that render inside the Android WebView.
+- [x] Fix chat list and conversation bubble sizing to match standard messaging apps instead of appearing compressed or stretched.
+- [x] Replace the uniform sticker pack with a diverse set of distinct premium emojis/stickers.
+- [x] Add powerful, usable premium features beyond stickers (exclusive chat themes and animated profile frames).
+- [x] Send the latest user APK to the designated Telegram bot after the completed modifications, and retain this as the delivery rule for future releases.
+- [x] Fix Android page-shell overflow so settings, chats, and bottom navigation stay inside the viewport.
+- [x] Fix premium sticker rendering so each sticker displays its actual distinct asset rather than a fallback image.
+- [x] Inspect the linked Lovable project for database and UI mismatches and document any changes that must be synchronized.
+- [ ] Send the APK built from the latest shell and sticker fixes to the designated Telegram bot.
+- [x] Send a Lovable follow-up requesting a full regression pass over every known Alpha Byte issue before accepting any generated fix.
+- [x] Run a fresh local regression diagnosis for Android viewport, composer, chat list, media/sticker rendering, group/channel RPC, subscription-code RPC, microphone recording, and notifications.
+- [x] Apply and validate local fixes for every reproducible Alpha Byte user and admin defect without relying on unfinished Lovable changes.
+- [x] Run TypeScript, Vitest, web build, and Android builds for the corrected user and admin applications; audit that package identifiers remain separate.
+- [ ] Send the verified updated Alpha Byte User and Alpha Byte Admin APKs to the designated Telegram chat, then synchronize sanitized source to GitHub.

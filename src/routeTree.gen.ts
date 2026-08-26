@@ -21,6 +21,7 @@ import { Route as AuthenticatedDevicesRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedChatIdRouteImport } from './routes/_authenticated/chat.$id'
 import { Route as AuthenticatedGroupIdRouteImport } from './routes/_authenticated/group.$id'
+import { Route as AuthenticatedProfileIdRouteImport } from './routes/_authenticated/profile.$id'
 import { Route as AuthenticatedSecurityIdRouteImport } from './routes/_authenticated/security.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -82,6 +83,11 @@ const AuthenticatedGroupIdRoute = AuthenticatedGroupIdRouteImport.update({
   path: '/group/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProfileIdRoute = AuthenticatedProfileIdRouteImport.update({
+  id: '/profile/$id',
+  path: '/profile/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSecurityIdRoute = AuthenticatedSecurityIdRouteImport.update({
   id: '/security/$id',
   path: '/security/$id',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/chat/$id': typeof AuthenticatedChatIdRoute
   '/group/$id': typeof AuthenticatedGroupIdRoute
+  '/profile/$id': typeof AuthenticatedProfileIdRoute
   '/security/$id': typeof AuthenticatedSecurityIdRoute
 }
 export interface FileRoutesByTo {
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/chat/$id': typeof AuthenticatedChatIdRoute
   '/group/$id': typeof AuthenticatedGroupIdRoute
+  '/profile/$id': typeof AuthenticatedProfileIdRoute
   '/security/$id': typeof AuthenticatedSecurityIdRoute
 }
 export interface FileRoutesById {
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/chat/$id': typeof AuthenticatedChatIdRoute
   '/_authenticated/group/$id': typeof AuthenticatedGroupIdRoute
+  '/_authenticated/profile/$id': typeof AuthenticatedProfileIdRoute
   '/_authenticated/security/$id': typeof AuthenticatedSecurityIdRoute
 }
 export interface FileRouteTypes {
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/chat/$id'
     | '/group/$id'
+    | '/profile/$id'
     | '/security/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/chat/$id'
     | '/group/$id'
+    | '/profile/$id'
     | '/security/$id'
   id:
     | '__root__'
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/chat/$id'
     | '/_authenticated/group/$id'
+    | '/_authenticated/profile/$id'
     | '/_authenticated/security/$id'
   fileRoutesById: FileRoutesById
 }
@@ -271,6 +283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGroupIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/profile/$id': {
+      id: '/_authenticated/profile/$id'
+      path: '/profile/$id'
+      fullPath: '/profile/$id'
+      preLoaderRoute: typeof AuthenticatedProfileIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/security/$id': {
       id: '/_authenticated/security/$id'
       path: '/security/$id'
@@ -290,6 +309,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedChatIdRoute: typeof AuthenticatedChatIdRoute
   AuthenticatedGroupIdRoute: typeof AuthenticatedGroupIdRoute
+  AuthenticatedProfileIdRoute: typeof AuthenticatedProfileIdRoute
   AuthenticatedSecurityIdRoute: typeof AuthenticatedSecurityIdRoute
 }
 
@@ -302,6 +322,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedChatIdRoute: AuthenticatedChatIdRoute,
   AuthenticatedGroupIdRoute: AuthenticatedGroupIdRoute,
+  AuthenticatedProfileIdRoute: AuthenticatedProfileIdRoute,
   AuthenticatedSecurityIdRoute: AuthenticatedSecurityIdRoute,
 }
 

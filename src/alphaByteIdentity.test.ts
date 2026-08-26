@@ -49,7 +49,7 @@ describe("Alpha Byte imported-project identity", () => {
   });
 
   it("keeps requested messaging enhancements encrypted, recoverable, and natively visible", async () => {
-    const [attachments, chat, push, settings, vault, migration, recoveryMigration, activation, nativeActivity, microphonePlugin, authenticatedShell, runtime, i18n, microphone, session] = await Promise.all([
+    const [attachments, chat, push, settings, vault, migration, recoveryMigration, activation, nativeActivity, microphonePlugin, authenticatedShell, runtime, i18n, microphone, session, styles] = await Promise.all([
       readFile(path.join(root, "lib/attachments.ts"), "utf8"),
       readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
       readFile(path.join(root, "lib/push-notifications.ts"), "utf8"),
@@ -65,6 +65,7 @@ describe("Alpha Byte imported-project identity", () => {
       readFile(path.join(root, "lib/i18n.tsx"), "utf8"),
       readFile(path.join(root, "lib/microphone.ts"), "utf8"),
       readFile(path.join(root, "lib/session.tsx"), "utf8"),
+      readFile(path.join(root, "styles.css"), "utf8"),
     ]);
     expect(attachments).toContain("encryptFile");
     expect(attachments).toContain("encrypted-attachments");
@@ -91,6 +92,9 @@ describe("Alpha Byte imported-project identity", () => {
     expect(nativeActivity.indexOf("registerPlugin(MicrophonePermissionPlugin.class)")).toBeLessThan(nativeActivity.indexOf("super.onCreate(savedInstanceState)"));
     expect(microphonePlugin).toContain('result.put("status", status)');
     expect(microphonePlugin).toContain('resolveWithStatus(call, "granted")');
+    expect(microphonePlugin).toContain("startCapture");
+    expect(microphonePlugin).toContain("stopCapture");
+    expect(microphonePlugin).toContain("MediaRecorder.OutputFormat.MPEG_4");
     expect(runtime).toContain("/api/notifications/status");
     expect(runtime).toContain("Authorization, Content-Type");
     expect(authenticatedShell).toContain('App.addListener("backButton"');
@@ -99,13 +103,17 @@ describe("Alpha Byte imported-project identity", () => {
     expect(i18n).not.toContain("TURN");
     expect(i18n).not.toContain("Capacitor build");
     expect(microphone).toContain("beginVoiceCapture");
+    expect(microphone).toContain("startNativeVoiceCapture");
+    expect(microphone).toContain("finishNativeVoiceCapture");
     expect(microphone).toContain("getUserMedia");
     expect(vault).toContain('theme: "light"');
     expect(session).toContain("themePreferenceSet");
+    expect(chat).toContain("chat-composer");
+    expect(styles).toContain("padding-bottom: max(env(safe-area-inset-bottom), 1rem)");
   });
 
   it("keeps professional community, subscription, and quiet-notification features within their intended boundaries", async () => {
-    const [chat, attachments, push, groups, groupCrypto, groupRoute, verifiedBadge, subscriptions, admin, settings, migration, viteConfig, packageJson, androidBuild, authenticatedShell, capacitorConfig] = await Promise.all([
+    const [chat, attachments, push, groups, groupCrypto, groupRoute, verifiedBadge, subscriptions, admin, settings, migration, groupFallbackMigration, viteConfig, packageJson, androidBuild, authenticatedShell, capacitorConfig] = await Promise.all([
       readFile(path.join(root, "routes/_authenticated/chat.$id.tsx"), "utf8"),
       readFile(path.join(root, "lib/attachments.ts"), "utf8"),
       readFile(path.join(root, "lib/push-notifications.ts"), "utf8"),
@@ -117,6 +125,7 @@ describe("Alpha Byte imported-project identity", () => {
       readFile(path.join(root, "routes/_authenticated/admin.tsx"), "utf8"),
       readFile(path.join(root, "routes/_authenticated/settings.tsx"), "utf8"),
       readFile(path.join(root, "..", "supabase/migrations/20260825180000_community_and_subscription_features.sql"), "utf8"),
+      readFile(path.join(root, "..", "supabase/migrations/20260826113000_fix_group_creator_fallback_policy.sql"), "utf8"),
       readFile(path.join(root, "..", "vite.config.ts"), "utf8"),
       readFile(path.join(root, "..", "package.json"), "utf8"),
       readFile(path.join(root, "..", "android/app/build.gradle"), "utf8"),
@@ -134,6 +143,7 @@ describe("Alpha Byte imported-project identity", () => {
     expect(push).not.toContain("LocalNotifications.schedule");
     expect(groups).toContain("create_group");
     expect(groups).toContain("group_key_envelopes");
+    expect(groups).toContain("const ownerId = group.owner_id || creatorId");
     expect(groupCrypto).toContain("sealGroupKeyForMember");
     expect(groupCrypto).toContain("openGroupKeyForMember");
     expect(groupRoute).toContain("إدارة الأعضاء");
@@ -147,6 +157,8 @@ describe("Alpha Byte imported-project identity", () => {
     expect(migration).toContain("CREATE TABLE IF NOT EXISTS public.subscription_codes");
     expect(migration).toContain("digest(normalized, 'sha256')");
     expect(migration).toContain("profile-avatars");
+    expect(groupFallbackMigration).toContain("member_id = auth.uid()");
+    expect(groupFallbackMigration).toContain("role = 'owner'");
     expect(viteConfig).toContain("tanstackRouter");
     expect(packageJson).toContain("android:admin:debug");
     expect(androidBuild).toContain("applicationId \"Com.qarfash.admin\"");

@@ -21,29 +21,46 @@ export async function createGroup(
   creatorPublicKey: string,
   options: { title: string; description: string; kind: GroupKind; avatarUrl?: string | null },
 ) {
+  const { data: authData } = await supabase.auth.getUser();
+  const creatorId = authData.user?.id;
+  if (!creatorId) throw new Error("GROUP_AUTH_REQUIRED");
   const rpc = (supabase as unknown as {
     rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
   }).rpc;
   const { data, error } = await rpc("create_group", {
-    _title: options.title,
+    _title: options.title.trim(),
     _kind: options.kind,
-    _description: options.description,
+    _description: options.description.trim(),
     _avatar_url: options.avatarUrl ?? null,
   });
-  if (error || !data) throw error ?? new Error("GROUP_CREATION_FAILED");
-  const group = data as unknown as GroupRow;
+  let rawGroup = Array.isArray(data) ? data[0] : data;
+  if (error || !rawGroup || typeof rawGroup !== "object" || !("id" in rawGroup)) {
+    // Fallback keeps the client usable on projects where a previously deployed RPC grant is missing.
+    const groups = (supabase as unknown as { from: (table: string) => any }).from("groups");
+    const { data: inserted, error: insertError } = await groups
+      .insert({ owner_id: creatorId, kind: options.kind, title: options.title.trim(), description: options.description.trim(), avatar_url: options.avatarUrl ?? null })
+      .select("id, owner_id, kind, title, description, avatar_url, invite_slug, created_at")
+      .single();
+    if (insertError || !inserted) throw new Error(`GROUP_RPC_FAILED:${String((error as { message?: string })?.message ?? (insertError as { message?: string })?.message ?? error ?? insertError)}`);
+    const members = (supabase as unknown as { from: (table: string) => any }).from("group_members");
+    const { error: ownerError } = await members.insert({ group_id: inserted.id, member_id: creatorId, role: "owner" });
+    if (ownerError) throw new Error(`GROUP_OWNER_SETUP_FAILED:${String((ownerError as { message?: string }).message ?? ownerError)}`);
+    rawGroup = inserted;
+  }
+  const group = rawGroup as GroupRow;
+  const ownerId = group.owner_id || creatorId;
   const key = await generateGroupMessageKey();
   const envelope = await sealGroupKeyForMember(creatorPrivateKey, creatorPublicKey, group.id, key);
   const groupKeyEnvelopes = (supabase as unknown as { from: (table: string) => any }).from("group_key_envelopes");
   const { error: envelopeError } = await groupKeyEnvelopes.insert({
     group_id: group.id,
-    member_id: group.owner_id,
-    sender_id: group.owner_id,
+    member_id: ownerId,
+    sender_id: ownerId,
     encrypted_key: envelope.ciphertext,
     iv: envelope.iv,
     key_version: 1,
   });
-  if (envelopeError) throw envelopeError;
+  if (envelopeError) throw new Error(`GROUP_KEY_ENVELOPE_FAILED:${String((envelopeError as { message?: string }).message ?? envelopeError)}`);
   return group;
 }
 

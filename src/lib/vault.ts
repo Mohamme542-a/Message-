@@ -141,6 +141,8 @@ export interface LocalSettings {
   theme: "dark" | "light" | "system";
   themePreferenceSet: boolean;
   accentColor: "black" | "blue" | "green" | "amber";
+  premiumChatStyle: "classic" | "midnight" | "ocean";
+  premiumAvatarFrame: boolean;
   failedUnlockAttempts: number;
 }
 
@@ -153,6 +155,8 @@ export const defaultSettings: LocalSettings = {
   theme: "light",
   themePreferenceSet: false,
   accentColor: "black",
+  premiumChatStyle: "classic",
+  premiumAvatarFrame: false,
   failedUnlockAttempts: 0,
 };
 

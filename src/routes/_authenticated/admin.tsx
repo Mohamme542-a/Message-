@@ -14,7 +14,7 @@ import { hasRole } from "@/lib/ab-api";
 import { isAdminEdition } from "@/lib/app-edition";
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
-import { createSubscriptionCode } from "@/lib/subscriptions";
+import { createSubscriptionCode, subscriptionErrorMessage } from "@/lib/subscriptions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   ssr: false,
@@ -164,8 +164,8 @@ function AdminPage() {
       setIssuedCode(result.code);
       await queryClient.invalidateQueries({ queryKey: ["adminSubscriptionCodes"] });
       toast.success("تم إنشاء الكود.");
-    } catch {
-      toast.error("تعذر إنشاء الكود.");
+    } catch (error) {
+      toast.error(subscriptionErrorMessage(error));
     } finally {
       setIssuingCode(false);
     }
