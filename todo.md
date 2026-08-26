@@ -220,4 +220,5 @@
 - [x] Preserve sender/source attribution when forwarding a message without exposing the plaintext to the server.
 - [x] Expand bundled original premium stickers into 35 distinct, display-safe expressive assets and integrate them in reactions and profile selection.
 - [x] Add regression coverage, build the Android user APK, send it to Telegram, and synchronize sanitized source to GitHub.
-- [ ] Compare the pre-Lovable working group/channel creation implementation with the current source, restore its reliable transaction order, and verify it before delivering a replacement APK.
+- [x] Compare the pre-Lovable working group/channel creation implementation with the current source, restore its reliable transaction order, and verify it before delivering a replacement APK.
+- [ ] Replace the failing group/channel creation dependency with a verified compatible path and surface its real database error in Arabic if creation cannot complete.

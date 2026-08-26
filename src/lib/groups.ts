@@ -21,10 +21,10 @@ export async function createGroup(
   creatorPublicKey: string,
   options: { title: string; description: string; kind: GroupKind; avatarUrl?: string | null },
 ) {
-  const rpc = (supabase as unknown as {
+  const communityClient = supabase as unknown as {
     rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-  }).rpc;
-  const { data, error } = await rpc("create_group", {
+  };
+  const { data, error } = await communityClient.rpc("create_group", {
     _title: options.title.trim(),
     _kind: options.kind,
     _description: options.description.trim(),

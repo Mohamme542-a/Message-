@@ -201,7 +201,7 @@ describe("Alpha Byte imported-project identity", () => {
       readFile(path.join(root, "lib/premium-stickers.ts"), "utf8"),
     ]);
 
-    expect(groups).toContain('rpc("create_group"');
+    expect(groups).toContain('communityClient.rpc("create_group"');
     expect(groups).toContain("GROUP_RPC_FAILED");
     expect(groups).toContain("group_key_envelopes");
     expect(groups).not.toContain("nextGroupId");
