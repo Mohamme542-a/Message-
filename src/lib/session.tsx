@@ -80,7 +80,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     root.dataset["accent"] = settings.accentColor;
     root.dataset["premiumChatStyle"] = settings.premiumChatStyle;
     root.dataset["premiumAvatarFrame"] = settings.premiumAvatarFrame ? "on" : "off";
-  }, [settings.theme, settings.accentColor, settings.premiumChatStyle, settings.premiumAvatarFrame]);
+    root.dataset["premiumProfileEffect"] = settings.premiumProfileEffect;
+  }, [settings.theme, settings.accentColor, settings.premiumChatStyle, settings.premiumAvatarFrame, settings.premiumProfileEffect]);
 
   const updateSettings = useCallback((patch: Partial<LocalSettings>) => {
     setSettings((prev) => {

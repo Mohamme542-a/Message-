@@ -146,7 +146,7 @@ describe("Alpha Byte imported-project identity", () => {
     expect(groups).toContain("GROUP_RPC_FAILED");
     expect(groupCrypto).toContain("sealGroupKeyForMember");
     expect(groupCrypto).toContain("openGroupKeyForMember");
-    expect(groupRoute).toContain("إدارة الأعضاء");
+    expect(groupRoute).toContain("الأعضاء والصلاحيات");
     expect(groupRoute).toContain("set_group_member_role");
     expect(verifiedBadge).toContain("BadgeCheck");
     expect(subscriptions).toContain("create_subscription_code");
@@ -212,5 +212,28 @@ describe("Alpha Byte imported-project identity", () => {
     expect(chat).toContain("محولة من");
     expect(stickers).toContain("bytey-crown");
     expect(stickers).toContain("bytey-ninja");
+  });
+
+  it("keeps professional community controls and VIP customization available in the mobile interface", async () => {
+    const [group, settings, session, groupMedia, styles] = await Promise.all([
+      readFile(path.join(root, "routes/_authenticated/group.$id.tsx"), "utf8"),
+      readFile(path.join(root, "routes/_authenticated/settings.tsx"), "utf8"),
+      readFile(path.join(root, "lib/session.tsx"), "utf8"),
+      readFile(path.join(root, "lib/group-media.ts"), "utf8"),
+      readFile(path.join(root, "styles.css"), "utf8"),
+    ]);
+
+    expect(group).toContain("saveGroupSettings");
+    expect(group).toContain("chooseGroupAvatar");
+    expect(group).toContain("removeGroupAvatar");
+    expect(group).toContain("rotateInvite");
+    expect(group).toContain("set_group_member_role");
+    expect(group).toContain("remove_group_member");
+    expect(groupMedia).toContain("uploadGroupAvatar");
+    expect(settings).toContain("premiumProfileEffect");
+    expect(settings).toContain("نيون");
+    expect(session).toContain('premiumProfileEffect');
+    expect(styles).toContain('data-premium-chat-style="neon"');
+    expect(styles).toContain('data-premium-profile-effect="aurora"');
   });
 });

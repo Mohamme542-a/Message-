@@ -219,7 +219,7 @@ function SettingsPage() {
         <h2 className="mb-4 text-sm font-semibold">{t("settings.profile")}</h2>
         <div className="mb-4 flex items-center gap-3">
           {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="الصورة الشخصية" className="h-14 w-14 rounded-2xl object-cover" />
+            <img src={profile.avatar_url} alt="الصورة الشخصية" className="premium-avatar-frame h-14 w-14 rounded-2xl object-cover" />
           ) : (
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl brand-bg text-lg font-bold text-primary-foreground">
               {(profile?.display_name || profile?.username || "?").slice(0, 2).toUpperCase()}
@@ -276,7 +276,7 @@ function SettingsPage() {
         <h2 className="flex items-center gap-2 text-sm font-semibold"><Palette className="h-4 w-4 text-primary" />مزايا Alpha Byte المميزة</h2>
         <p className="mt-2 text-xs text-muted-foreground">أدوات قابلة للتخصيص تُحفظ على جهازك ولا تغيّر تشفير الرسائل.</p>
         <div className="mt-4 grid grid-cols-3 gap-2">
-          {([['classic', 'كلاسيكي'], ['midnight', 'ليلي'], ['ocean', 'محيطي']] as const).map(([value, label]) => (
+          {([['classic', 'كلاسيكي'], ['midnight', 'ليلي'], ['ocean', 'محيطي'], ['neon', 'نيون'], ['rose', 'شفق']] as const).map(([value, label]) => (
             <Button key={value} type="button" size="sm" variant={settings.premiumChatStyle === value ? "default" : "outline"} onClick={() => requirePremium(() => updateSettings({ premiumChatStyle: value }))}>{label}</Button>
           ))}
         </div>
@@ -284,11 +284,12 @@ function SettingsPage() {
           <span><span className="block font-medium">إطار صورة مميز</span><span className="block text-[11px] text-muted-foreground">حلقة متحركة حول صورك داخل التطبيق.</span></span>
           <Switch checked={settings.premiumAvatarFrame} onCheckedChange={(value) => requirePremium(() => updateSettings({ premiumAvatarFrame: value }))} />
         </div>
+        <div className="mt-3 rounded-2xl border border-border bg-background/60 p-3"><p className="mb-2 text-xs font-medium">تأثير الملف الشخصي</p><div className="grid grid-cols-3 gap-2">{([['halo', 'هالة'], ['aurora', 'شفق'], ['spark', 'شرارة']] as const).map(([value, label]) => <Button key={value} type="button" size="sm" variant={settings.premiumProfileEffect === value ? "default" : "outline"} onClick={() => requirePremium(() => updateSettings({ premiumAvatarFrame: true, premiumProfileEffect: value }))}>{label}</Button>)}</div></div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-          <div className="rounded-xl bg-background/60 p-2">معاينة صور وملصقات مميزة</div>
-          <div className="rounded-xl bg-background/60 p-2">تفاعل ملصقات على الرسائل</div>
-          <div className="rounded-xl bg-background/60 p-2">ثيم محادثة خاص</div>
-          <div className="rounded-xl bg-background/60 p-2">حدود ملف شخصية متحركة</div>
+          <div className="rounded-xl bg-background/60 p-2">35 ملصقًا وتفاعلًا حصريًا</div>
+          <div className="rounded-xl bg-background/60 p-2">صورة ملف متحركة</div>
+          <div className="rounded-xl bg-background/60 p-2">خمسة أنماط محادثة</div>
+          <div className="rounded-xl bg-background/60 p-2">إطار وتأثير ملف شخصي</div>
         </div>
       </section>
 

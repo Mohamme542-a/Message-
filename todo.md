@@ -221,4 +221,9 @@
 - [x] Expand bundled original premium stickers into 35 distinct, display-safe expressive assets and integrate them in reactions and profile selection.
 - [x] Add regression coverage, build the Android user APK, send it to Telegram, and synchronize sanitized source to GitHub.
 - [x] Compare the pre-Lovable working group/channel creation implementation with the current source, restore its reliable transaction order, and verify it before delivering a replacement APK.
-- [ ] Replace the failing group/channel creation dependency with a verified compatible path and surface its real database error in Arabic if creation cannot complete.
+- [x] Replace the failing group/channel creation dependency with a verified compatible path and surface its real database error in Arabic if creation cannot complete.
+- [ ] Add owner/admin group and channel controls for title, description, avatar upload/removal, invitation links, member visibility, and deletion with strict role enforcement.
+- [ ] Add member-management controls for adding members, promoting/demoting administrators, restricting publishing where applicable, and removing members without decrypting messages server-side.
+- [ ] Add Telegram-style group/channel settings panels with channel publishing policy, invite-link regeneration/revocation, and owner-only destructive actions.
+- [ ] Expand VIP into usable visual and interaction perks: verified badge, animated profile frame, exclusive chat themes, advanced sticker/reaction packs, and profile effects, while keeping core messaging free.
+- [ ] Add regression coverage, verify mobile UI, build APK user, send it to Telegram, and synchronize sanitized source to GitHub.
