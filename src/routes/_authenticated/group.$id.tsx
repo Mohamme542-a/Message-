@@ -105,6 +105,7 @@ function GroupPage() {
   const canManage = myRole === "owner" || myRole === "admin";
   const isOwner = myRole === "owner";
   const canPublish = group?.kind === "group" || canManage;
+  const canShareInvite = canManage || Boolean(group?.members_can_invite);
 
   useEffect(() => {
     if (!group) return;
@@ -163,6 +164,16 @@ function GroupPage() {
 
   async function send() {
     if (!draft.trim() || !groupKey || !canPublish || sending) return;
+    if (!canManage && group?.slow_mode_seconds) {
+      const lastOwnMessage = [...rows].reverse().find((row) => row.sender_id === userId);
+      const remaining = lastOwnMessage
+        ? group.slow_mode_seconds * 1000 - (Date.now() - new Date(lastOwnMessage.created_at).getTime())
+        : 0;
+      if (remaining > 0) {
+        toast.error(`وضع الإبطاء مفعّل. انتظر ${Math.ceil(remaining / 1000)} ثوانٍ قبل الإرسال.`);
+        return;
+      }
+    }
     setSending(true);
     try {
       const payload = await encryptWithKey(groupKey, draft.trim());
@@ -212,7 +223,10 @@ function GroupPage() {
   }
 
   async function copyInvite() {
-    if (!group) return;
+    if (!group || !canShareInvite) {
+      toast.error("مشاركة رابط الانضمام متاحة للإدارة فقط.");
+      return;
+    }
     await navigator.clipboard.writeText(`alphabyte://join/${group.invite_slug}`);
     toast.success("تم نسخ رابط الانضمام.");
   }
@@ -295,7 +309,7 @@ function GroupPage() {
         <Link to="/chats" className="rounded-full p-1.5 text-muted-foreground press"><ArrowRight className="h-5 w-5" /></Link>
         {group?.avatar_url ? <img src={group.avatar_url} alt="" className="h-10 w-10 rounded-2xl object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-2xl brand-bg text-primary-foreground"><Users className="h-5 w-5" /></span>}
         <div className="min-w-0 flex-1"><h1 className="truncate text-base font-semibold">{group?.title ?? "…"}</h1><p className="truncate text-xs text-muted-foreground">{group?.kind === "channel" ? "قناة" : "مجموعة"} · {members.length} عضو</p></div>
-        <Button type="button" size="icon" variant="outline" className="rounded-full" onClick={() => void copyInvite()} aria-label="نسخ رابط الانضمام"><LinkIcon className="h-4 w-4" /></Button>
+        {canShareInvite ? <Button type="button" size="icon" variant="outline" className="rounded-full" onClick={() => void copyInvite()} aria-label="نسخ رابط الانضمام"><LinkIcon className="h-4 w-4" /></Button> : null}
         {canManage ? <Button type="button" size="icon" variant={manageOpen ? "default" : "outline"} className="rounded-full" onClick={() => setManageOpen((value) => !value)} aria-label="إدارة المساحة"><Settings2 className="h-4 w-4" /></Button> : null}
       </header>
 

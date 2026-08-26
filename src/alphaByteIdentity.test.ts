@@ -229,6 +229,9 @@ describe("Alpha Byte imported-project identity", () => {
     expect(group).toContain("rotateInvite");
     expect(group).toContain("set_group_member_role");
     expect(group).toContain("remove_group_member");
+    expect(group).toContain("canShareInvite");
+    expect(group).toContain("slow_mode_seconds");
+    expect(group).toContain("وضع الإبطاء مفعّل");
     expect(groupMedia).toContain("uploadGroupAvatar");
     expect(settings).toContain("premiumProfileEffect");
     expect(settings).toContain("نيون");
